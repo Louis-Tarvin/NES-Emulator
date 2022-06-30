@@ -556,12 +556,17 @@ bool Cpu::bcc(AddressingMode am)
     {
         cycles++;
         uint16_t offset = read(pc);
+        pc++;
         if (offset & 0x80)
             offset = offset | 0xFF00;
 
         if (((pc + offset) & 0xFF00) != (pc & 0xFF00))
             cycles++;
         pc += offset;
+    }
+    else
+    {
+        pc++;
     }
     return false;
 }
@@ -573,12 +578,17 @@ bool Cpu::bcs(AddressingMode am)
     {
         cycles++;
         uint16_t offset = read(pc);
+        pc++;
         if (offset & 0x80)
             offset = offset | 0xFF00;
 
         if (((pc + offset) & 0xFF00) != (pc & 0xFF00))
             cycles++;
         pc += offset;
+    }
+    else
+    {
+        pc++;
     }
     return false;
 }
@@ -590,12 +600,17 @@ bool Cpu::beq(AddressingMode am)
     {
         cycles++;
         uint16_t offset = read(pc);
+        pc++;
         if (offset & 0x80)
             offset = offset | 0xFF00;
 
         if (((pc + offset) & 0xFF00) != (pc & 0xFF00))
             cycles++;
         pc += offset;
+    }
+    else
+    {
+        pc++;
     }
     return false;
 }
@@ -607,12 +622,17 @@ bool Cpu::bne(AddressingMode am)
     {
         cycles++;
         uint16_t offset = read(pc);
+        pc++;
         if (offset & 0x80)
             offset = offset | 0xFF00;
 
         if (((pc + offset) & 0xFF00) != (pc & 0xFF00))
             cycles++;
         pc += offset;
+    }
+    else
+    {
+        pc++;
     }
     return false;
 }
@@ -624,12 +644,17 @@ bool Cpu::bmi(AddressingMode am)
     {
         cycles++;
         uint16_t offset = read(pc);
+        pc++;
         if (offset & 0x80)
             offset = offset | 0xFF00;
 
         if (((pc + offset) & 0xFF00) != (pc & 0xFF00))
             cycles++;
         pc += offset;
+    }
+    else
+    {
+        pc++;
     }
     return false;
 }
@@ -641,12 +666,17 @@ bool Cpu::bpl(AddressingMode am)
     {
         cycles++;
         uint16_t offset = read(pc);
+        pc++;
         if (offset & 0x80)
             offset = offset | 0xFF00;
 
         if (((pc + offset) & 0xFF00) != (pc & 0xFF00))
             cycles++;
         pc += offset;
+    }
+    else
+    {
+        pc++;
     }
     return false;
 }
@@ -658,12 +688,17 @@ bool Cpu::bvc(AddressingMode am)
     {
         cycles++;
         uint16_t offset = read(pc);
+        pc++;
         if (offset & 0x80)
             offset = offset | 0xFF00;
 
         if (((pc + offset) & 0xFF00) != (pc & 0xFF00))
             cycles++;
         pc += offset;
+    }
+    else
+    {
+        pc++;
     }
     return false;
 }
@@ -675,12 +710,17 @@ bool Cpu::bvs(AddressingMode am)
     {
         cycles++;
         uint16_t offset = read(pc);
+        pc++;
         if (offset & 0x80)
             offset = offset | 0xFF00;
 
         if (((pc + offset) & 0xFF00) != (pc & 0xFF00))
             cycles++;
         pc += offset;
+    }
+    else
+    {
+        pc++;
     }
     return false;
 }
