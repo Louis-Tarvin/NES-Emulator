@@ -52,6 +52,8 @@ public:
     Cpu();
     ~Cpu();
 
+    bool just_completed = false;
+
     std::string display();
 
     void connect_bus(Bus &bus);

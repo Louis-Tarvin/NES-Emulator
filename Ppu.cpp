@@ -94,11 +94,11 @@ uint8_t Ppu::read(uint16_t addr)
     {
     case 0x0000:
         // PPU CTRL
-        data = ppuctrl;
+        // data = ppuctrl;
         break;
     case 0x0001:
         // PPU MASK
-        data = ppumask;
+        // data = ppumask;
         break;
     case 0x0002:
         // PPU STATUS
@@ -111,12 +111,12 @@ uint8_t Ppu::read(uint16_t addr)
     case 0x0007:
         // PPU DATA
         data = data_buffer;
-        data_buffer = ppu_read(ppuaddr);
+        data_buffer = ppu_read(ppuaddr.reg);
         // no delay when reading palette data for some reason
-        if (ppuaddr > 0x3f00)
+        if (ppuaddr.reg >= 0x3f00)
             data = data_buffer;
         // increment PPU addr by amount specified by bit 2 of PPU CTRL
-        ppuaddr += (ppuctrl & 0b00000100) ? 32 : 1;
+        ppuaddr.reg += (ppuctrl & 0b00000100) ? 32 : 1;
         break;
     }
     return data;
@@ -128,31 +128,53 @@ void Ppu::write(uint16_t addr, uint8_t data)
     switch (addr)
     {
     case 0x0000:
-        // PPU CTRL
+        // PPU Control
         ppuctrl = data;
+        addr_buffer.nametable = (ppuctrl & 0b00000011);
         break;
     case 0x0001:
+        // PPU Mask
         ppumask = data;
         break;
+    case 0x0005:
+        // PPU Scroll
+        if (address_latch)
+        {
+            // scroll y
+            addr_buffer.fine_y = data & 0b0111;
+            addr_buffer.coarse_y = data >> 3;
+            address_latch = false;
+        }
+        else
+        {
+            // scroll x
+            fine_x = data & 0b0111;
+            addr_buffer.coarse_x = data >> 3;
+            address_latch = true;
+        }
+        break;
     case 0x0006:
+        // PPU Address
         if (address_latch)
         {
             // write the high byte of the address
-            addr_buffer = (addr_buffer & 0xFF00) | data;
-            ppuaddr = (addr_buffer & 0x3FFF);
+            addr_buffer.reg = (addr_buffer.reg & 0xFF00) | data;
+            addr_buffer.reg &= 0x3FFF;
+            ppuaddr = addr_buffer;
             address_latch = false;
         }
         else
         {
             // write the low byte of the address
-            addr_buffer = (addr_buffer & 0x00FF) | (uint16_t)(data << 8);
+            addr_buffer.reg = (addr_buffer.reg & 0x00FF) | (uint16_t)(data << 8);
             address_latch = true;
         }
         break;
     case 0x0007:
-        ppu_write(ppuaddr, data);
+        // PPU Data
+        ppu_write(ppuaddr.reg, data);
         // increment PPU addr by amount specified by bit 2 of PPU CTRL
-        ppuaddr += (ppuctrl & 0b00000100) ? 32 : 1;
+        ppuaddr.reg += (ppuctrl & 0b00000100) ? 32 : 1;
         break;
     }
 }
@@ -171,18 +193,18 @@ uint8_t Ppu::ppu_read(uint16_t addr)
         addr &= 0x0FFF; // mirroring
         if (cartridge->mirroring == Mirroring::Horizontal)
         {
-            if (addr > 0 && addr < 0x0800)
+            if (addr >= 0 && addr < 0x0800)
             {
-                return nametables[0][addr & 0x3ff];
+                return nametables[0][addr & 0x3FF];
             }
             else if (addr < 0x1000)
             {
-                return nametables[1][(addr - 0x0800) & 0x3ff];
+                return nametables[1][addr & 0x3FF];
             }
         }
         else if (cartridge->mirroring == Mirroring::Vertical)
         {
-            if (addr > 0 && addr < 0x0400)
+            if (addr >= 0 && addr < 0x0400)
             {
                 return nametables[0][addr];
             }
@@ -215,6 +237,7 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
     if (addr >= 0 && addr < 0x2000)
     {
         // TODO: Pattern table write??
+        uint8_t x = 0;
     }
     else if (addr < 0x3F00)
     {
@@ -222,7 +245,7 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
         addr &= 0x0FFF; // mirroring
         if (cartridge->mirroring == Mirroring::Horizontal)
         {
-            if (addr > 0 && addr < 0x0800)
+            if (addr >= 0 && addr < 0x0800)
             {
                 nametables[0][addr & 0x3ff] = data;
             }
@@ -233,7 +256,7 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
         }
         else if (cartridge->mirroring == Mirroring::Vertical)
         {
-            if (addr > 0 && addr < 0x0400)
+            if (addr >= 0 && addr < 0x0400)
             {
                 nametables[0][addr] = data;
             }
@@ -326,8 +349,8 @@ std::string Ppu::display()
     output << "\n ppuctrl:   " << std::bitset<8>(ppuctrl);
     output << "\n ppumask:   " << std::bitset<8>(ppumask);
     output << "\n ppustatus: " << std::bitset<8>(ppustatus);
-    output << "\n ppuaddr:   " << std::hex << +ppuaddr;
-    output << "\n addrbuffer:" << std::hex << +addr_buffer;
+    output << "\n ppuaddr:   " << std::hex << +ppuaddr.reg;
+    output << "\n addrbuffer:" << std::hex << +addr_buffer.reg;
     output << "\n ppudata:   " << std::bitset<8>(ppudata);
     output << "\n";
     return output.str();

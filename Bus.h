@@ -16,6 +16,7 @@ public:
     std::array<uint8_t, 2048> mem;
     Cartridge cartridge;
     uint8_t controller[2];
+    bool cpu_executing = false;
 
     uint8_t read(uint16_t addr);
     void write(uint16_t addr, uint8_t data);

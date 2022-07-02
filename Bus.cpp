@@ -57,10 +57,13 @@ void Bus::write(uint16_t addr, uint8_t data)
 
 void Bus::clock()
 {
+    cpu_executing = true;
     if (cpu_cycle_delay == 0)
     {
         cpu.clock();
         cpu_cycle_delay = 3;
+        if (cpu.just_completed)
+            cpu_executing = false;
     }
     ppu.clock();
 

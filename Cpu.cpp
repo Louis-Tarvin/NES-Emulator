@@ -335,9 +335,9 @@ void Cpu::write_to_next_address(uint8_t data, AddressingMode am)
     else if (am == AddressingMode::IndirectY)
     {
         uint8_t addr = read(pc);
-        uint16_t addr2 = read_u16(addr + y);
+        uint16_t addr2 = read_u16_wrapped(addr);
         pc++;
-        write(addr2, data);
+        write(addr2 + y, data);
     }
     else if (am == AddressingMode::Accumulator)
     {
@@ -367,14 +367,16 @@ uint8_t Cpu::stack_pull()
 
 void Cpu::clock()
 {
+    just_completed = false;
     if (cycles == 0)
     {
+        just_completed = true;
         uint8_t opcode = read(pc);
-        // std::cout << "pc: " << std::hex << +pc;
+        // std::cout << "\npc: " << std::hex << +pc;
         pc++;
 
         Instruction current_instruction = lookup[opcode];
-        // std::cout << " opcode: " << std::hex << +opcode << "\n";
+        // std::cout << " opcode: " << std::hex << +opcode;
         cycles = current_instruction.cycles;
 
         bool extra_cycle = (this->*current_instruction.function)(current_instruction.addressing_mode);
@@ -420,6 +422,7 @@ void Cpu::nmi()
     stack_push(pc >> 8);
     stack_push(pc & 0x00FF);
     set_flag(Flag::B, false);
+    set_flag(Flag::U, true);
     set_flag(Flag::I, true);
     stack_push(status);
     pc = read_u16(0xFFFA);

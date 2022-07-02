@@ -11,19 +11,35 @@ private:
     // uint8_t patterntables[2][4096];
     uint8_t palettes[32];
 
+    // Registers
     uint8_t ppuctrl = 0;
     uint8_t ppumask = 0;
     uint8_t ppustatus = 0;
     uint8_t oamaddr = 0;
     uint8_t oamdata = 0;
     uint8_t ppuscroll = 0;
-    uint16_t ppuaddr = 0;
     uint8_t ppudata = 0;
     uint8_t oamdma = 0;
 
+    union vram_addr
+    {
+        struct
+        {
+            uint16_t coarse_x : 5;
+            uint16_t coarse_y : 5;
+            uint16_t nametable : 2;
+            uint16_t fine_y : 3;
+            uint16_t unused : 1;
+        };
+        uint16_t reg = 0x0000;
+    };
+
+    // Internal registers
     bool address_latch = false;
     uint8_t data_buffer = 0;
-    uint16_t addr_buffer = 0;
+    vram_addr ppuaddr;
+    vram_addr addr_buffer;
+    uint8_t fine_x = 0;
     uint16_t scanline = 0;
     uint16_t scanline_cycles = 0;
 
