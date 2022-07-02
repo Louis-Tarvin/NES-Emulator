@@ -54,7 +54,9 @@ bool Cpu::ldy(AddressingMode am)
 {
     Fetched fetched = get_address_value(am);
     y = fetched.value;
-    status = update_zero_and_negative_flags(y, status);
+    set_flag(Flag::Z, y == 0x00);
+    set_flag(Flag::N, y & 0x80);
+    // status = update_zero_and_negative_flags(y, status);
     return fetched.page_boundary_crossed;
 }
 
@@ -156,7 +158,11 @@ bool Cpu::pla(AddressingMode am)
 /// Push Status register onto the stack
 bool Cpu::php(AddressingMode am)
 {
+    set_flag(Flag::B, true);
+    set_flag(Flag::U, true); // Turns out this flag is used apparently
     stack_push(status);
+    set_flag(Flag::B, false);
+    set_flag(Flag::U, false);
     return false;
 }
 
@@ -192,16 +198,17 @@ bool Cpu::adc(AddressingMode am)
 bool Cpu::sbc(AddressingMode am)
 {
     Fetched fetched = get_address_value(am);
-    uint16_t value = (uint16_t)a + ((uint16_t)fetched.value ^ 0x00FF);
+    uint16_t value = ((uint16_t)fetched.value ^ 0x00FF);
+    uint16_t sum = value + (uint16_t)a;
     if (get_flag(Flag::C))
     {
-        value++;
+        sum++;
     }
-    set_flag(Flag::C, value > 255);
-    set_flag(Flag::Z, (value & 0x00FF) == 0);
-    set_flag(Flag::V, ((value ^ a) & ~(fetched.value ^ a)) & 0x0080);
-    set_flag(Flag::N, value & 0x80);
-    a = value & 0x00FF;
+    set_flag(Flag::C, sum > 0xFF);
+    set_flag(Flag::Z, (sum & 0x00FF) == 0);
+    set_flag(Flag::V, (sum ^ (uint16_t)a) & (sum ^ value) & 0x0080);
+    set_flag(Flag::N, sum & 0x80);
+    a = sum & 0x00FF;
     return fetched.page_boundary_crossed;
 }
 
@@ -296,8 +303,8 @@ bool Cpu::rol(AddressingMode am)
 bool Cpu::ror(AddressingMode am)
 {
     uint8_t value = get_address_value(am).value;
-    set_flag(Flag::C, (value & 0x01));
     uint16_t new_value = ((uint16_t)value >> 1) | ((uint16_t)get_flag(Flag::C) << 7);
+    set_flag(Flag::C, (value & 0x01));
     set_flag(Flag::Z, (new_value & 0x00FF) == 0);
     set_flag(Flag::N, new_value & 0x80);
     if (am == AddressingMode::Absolute || am == AddressingMode::AbsoluteX)
@@ -315,10 +322,11 @@ bool Cpu::ror(AddressingMode am)
 /// Bit test
 bool Cpu::bit(AddressingMode am)
 {
-    uint8_t value = a & get_address_value(am).value;
+    Fetched fetched = get_address_value(am);
+    uint8_t value = a & fetched.value;
     set_flag(Flag::Z, value == 0);
-    set_flag(Flag::V, (value & 0b01000000) == 0b01000000);
-    set_flag(Flag::N, (value & 0b10000000) == 0b10000000);
+    set_flag(Flag::V, (fetched.value & 0b01000000) == 0b01000000);
+    set_flag(Flag::N, (fetched.value & 0b10000000) == 0b10000000);
     return false;
 }
 
@@ -512,7 +520,7 @@ bool Cpu::jmp(AddressingMode am)
 bool Cpu::jsr(AddressingMode am)
 {
     u_int16_t addr = read_u16(pc);
-    u_int16_t old_addr = pc + 2;
+    u_int16_t old_addr = pc + 1;
     pc = addr;
     stack_push(old_addr >> 8);
     stack_push(old_addr & 0x00FF);
@@ -525,12 +533,14 @@ bool Cpu::rts(AddressingMode am)
     uint8_t lsb = stack_pull();
     uint8_t msb = stack_pull();
     pc = ((u_int16_t)msb << 8) | lsb;
+    pc++;
     return false;
 }
 
 /// Force interrupt
 bool Cpu::brk(AddressingMode am)
 {
+    pc++;
     stack_push(pc >> 8);
     stack_push(pc & 0x00FF);
     stack_push(status);
@@ -546,6 +556,7 @@ bool Cpu::rti(AddressingMode am)
     uint8_t lsb = stack_pull();
     uint8_t msb = stack_pull();
     pc = ((u_int16_t)msb << 8) | lsb;
+    // pc++;
     return false;
 }
 

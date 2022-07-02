@@ -183,6 +183,15 @@ uint16_t Cpu::read_u16(uint16_t addr)
     return ((uint16_t)byte_b) << 8 | (uint16_t)byte_a;
 }
 
+/// Read two bytes from memory at address and address + 1 (wraps zero page)
+uint16_t Cpu::read_u16_wrapped(uint16_t addr)
+{
+    // need to convert from Little-Endian to Big-Endian
+    uint8_t byte_a = read(addr);
+    uint8_t byte_b = read(addr + 1 & 0x00FF);
+    return ((uint16_t)byte_b) << 8 | (uint16_t)byte_a;
+}
+
 /// Write a byte to memory
 void Cpu::write(uint16_t addr, uint8_t data)
 {
@@ -210,13 +219,15 @@ Cpu::Fetched Cpu::get_address_value(AddressingMode am)
     {
         uint8_t addr = read(pc);
         pc++;
-        value = read(addr + x);
+        addr += x;
+        value = read(addr);
     }
     else if (am == AddressingMode::ZeroPageY)
     {
         uint8_t addr = read(pc);
         pc++;
-        value = read(addr + y);
+        addr += y;
+        value = read(addr);
     }
     else if (am == AddressingMode::Absolute)
     {
@@ -241,14 +252,15 @@ Cpu::Fetched Cpu::get_address_value(AddressingMode am)
     else if (am == AddressingMode::IndirectX)
     {
         uint8_t addr = read(pc);
-        uint16_t addr2 = read_u16(addr + x);
+        addr += x;
+        uint16_t addr2 = read_u16_wrapped(addr);
         pc++;
         value = read(addr2);
     }
     else if (am == AddressingMode::IndirectY)
     {
         uint8_t addr = read(pc);
-        uint16_t addr2 = read_u16(addr);
+        uint16_t addr2 = read_u16_wrapped(addr);
         pc++;
         value = read(addr2 + y);
         page_boundary_crossed = ((addr2 + y) & 0xFF00) != (addr2 & 0xFF00);
@@ -284,13 +296,15 @@ void Cpu::write_to_next_address(uint8_t data, AddressingMode am)
     {
         uint8_t addr = read(pc);
         pc++;
-        write(addr + x, data);
+        addr += x;
+        write(addr, data);
     }
     else if (am == AddressingMode::ZeroPageY)
     {
         uint8_t addr = read(pc);
         pc++;
-        write(addr + y, data);
+        addr += y;
+        write(addr, data);
     }
     else if (am == AddressingMode::Absolute)
     {
@@ -313,7 +327,8 @@ void Cpu::write_to_next_address(uint8_t data, AddressingMode am)
     else if (am == AddressingMode::IndirectX)
     {
         uint8_t addr = read(pc);
-        uint16_t addr2 = read_u16(addr + x);
+        addr += x;
+        uint16_t addr2 = read_u16_wrapped(addr);
         pc++;
         write(addr2, data);
     }
@@ -355,12 +370,12 @@ void Cpu::clock()
     if (cycles == 0)
     {
         uint8_t opcode = read(pc);
+        // std::cout << "pc: " << std::hex << +pc;
         pc++;
 
         Instruction current_instruction = lookup[opcode];
-        std::cout << "opcode: " << std::hex << +opcode << "\n";
+        // std::cout << " opcode: " << std::hex << +opcode << "\n";
         cycles = current_instruction.cycles;
-        // std::cout << "new cycles: " << +cycles << "\n";
 
         bool extra_cycle = (this->*current_instruction.function)(current_instruction.addressing_mode);
 
@@ -414,7 +429,7 @@ void Cpu::nmi()
 
 bool Cpu::get_flag(Flag f)
 {
-    return status & f;
+    return (status & f) > 0;
 }
 
 void Cpu::set_flag(Flag f, bool on)

@@ -15,7 +15,6 @@ enum class Mirroring
 class Cartridge
 {
 private:
-    Mirroring mirroring;
     bool persistent_memory;
     std::vector<uint8_t> prg_rom;
     std::vector<uint8_t> chr_rom;
@@ -27,4 +26,6 @@ public:
 
     uint8_t read(u_int16_t addr);
     uint8_t ppu_read(uint16_t addr);
+
+    Mirroring mirroring;
 };

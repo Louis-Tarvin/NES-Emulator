@@ -29,15 +29,29 @@ uint8_t Bus::read(uint16_t addr)
     {
         return cartridge.read(addr);
     }
+    else if (addr == 0x4016)
+    {
+        auto data = (controller_state[0] & 0x80) > 0;
+        controller_state[0] <<= 1;
+        return data;
+    }
 
     return 0;
 }
 
 void Bus::write(uint16_t addr, uint8_t data)
 {
-    if (addr > 0 && addr <= 0x1FFF)
+    if (addr >= 0 && addr < 0x2000)
     {
         mem[addr & 0x07FF] = data;
+    }
+    else if (addr < 0x4000)
+    {
+        ppu.write(addr, data);
+    }
+    else if (addr == 0x4016)
+    {
+        controller_state[0] = controller[0];
     }
 }
 
@@ -49,6 +63,14 @@ void Bus::clock()
         cpu_cycle_delay = 3;
     }
     ppu.clock();
+
+    // check if the PPU has triggered a non-maskable interrupt
+    if (ppu.emit_nmi)
+    {
+        ppu.emit_nmi = false;
+        cpu.nmi();
+    }
+
     cpu_cycle_delay--;
 }
 
@@ -63,5 +85,6 @@ std::string Bus::display()
         output << " ";
     }
     output << cpu.display();
+    output << ppu.display();
     return output.str();
 }

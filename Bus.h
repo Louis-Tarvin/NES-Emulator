@@ -15,6 +15,7 @@ public:
     Ppu ppu;
     std::array<uint8_t, 2048> mem;
     Cartridge cartridge;
+    uint8_t controller[2];
 
     uint8_t read(uint16_t addr);
     void write(uint16_t addr, uint8_t data);
@@ -24,4 +25,5 @@ public:
 
 private:
     uint8_t cpu_cycle_delay = 0;
+    uint8_t controller_state[2];
 };

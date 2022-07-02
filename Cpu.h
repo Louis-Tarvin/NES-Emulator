@@ -41,6 +41,7 @@ private:
 
     uint8_t read(uint16_t addr);
     uint16_t read_u16(uint16_t addr);
+    uint16_t read_u16_wrapped(uint16_t addr);
     void write(uint16_t addr, uint8_t data);
     Fetched get_address_value(AddressingMode am);
     void write_to_next_address(uint8_t data, AddressingMode am);
@@ -63,7 +64,7 @@ public:
     {
         N = (1 << 7), // Negative
         V = (1 << 6), // Overflow
-                      // Unused
+        U = (1 << 5), // Unused
         B = (1 << 4), // Break
         D = (1 << 3), // Decimal Mode
         I = (1 << 2), // Disable Interrupts

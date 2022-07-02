@@ -34,6 +34,7 @@ Cartridge::Cartridge(std::string file)
             header.identification[3] != '\032')
         {
             std::cout << "Invalid .nes file\n";
+            exit(1);
         }
 
         if (header.flags_1 & 0b00000100)
@@ -48,13 +49,20 @@ Cartridge::Cartridge(std::string file)
         prg_rom.resize(16384 * header.pgr_rom_size);
         ifs.read((char *)prg_rom.data(), prg_rom.size());
 
-        for (auto byte : prg_rom)
-        {
-            std::cout << +byte << " ";
-        }
+        // for (auto byte : prg_rom)
+        // {
+        //     std::cout << +byte << " ";
+        // }
 
         // Read CHR ROM
-        chr_rom.resize(8192 * header.chr_rom_size);
+        if (header.chr_rom_size)
+        {
+            chr_rom.resize(8192 * header.chr_rom_size);
+        }
+        else
+        {
+            chr_rom.resize(8192);
+        }
         ifs.read((char *)chr_rom.data(), chr_rom.size());
 
         ifs.close();
