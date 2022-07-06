@@ -27,7 +27,8 @@ private:
         {
             uint16_t coarse_x : 5;
             uint16_t coarse_y : 5;
-            uint16_t nametable : 2;
+            uint16_t nametable_x : 1;
+            uint16_t nametable_y : 1;
             uint16_t fine_y : 3;
             uint16_t unused : 1;
         };
@@ -42,6 +43,15 @@ private:
     uint8_t fine_x = 0;
     uint16_t scanline = 0;
     uint16_t scanline_cycles = 0;
+    // Internal latches for background rendering
+    uint8_t nametable_byte = 0;
+    uint8_t attribute_table_byte = 0;
+    uint8_t pattern_table_tile_low = 0;
+    uint8_t pattern_table_tile_high = 0;
+    uint16_t pattern_shift_reg_low = 0;
+    uint16_t pattern_shift_reg_high = 0;
+    uint16_t attribute_shift_reg_low = 0;
+    uint16_t attribute_shift_reg_high = 0;
 
 public:
     uint8_t nametables[2][1024];
@@ -62,5 +72,6 @@ public:
     void clock();
 
     olc::Pixel colour_map[0x40];
+    olc::Sprite screen = olc::Sprite(256, 240);
     bool emit_nmi = false;
 };

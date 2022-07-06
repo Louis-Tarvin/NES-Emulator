@@ -13,7 +13,7 @@ private:
     bool realtime = true;
 
 public:
-    Emulator() : bus(Bus("../roms/nestest.nes"))
+    Emulator() : bus(Bus("../roms/DonkeyKong.nes"))
     {
         sAppName = "NES Emulator";
     }
@@ -47,7 +47,7 @@ public:
         if (realtime)
         {
             // run the correct number of clock cycles
-            for (int i = 0; i < (clockspeed * dt); i++)
+            for (int i = 0; i < (clockspeed * dt * 3); i++)
             {
                 bus.clock();
             }
@@ -87,16 +87,18 @@ public:
         bus.ppu.get_pattern_table(0, selected_palette, &sprite);
         DrawSprite(516, 348, &sprite);
         DrawString(648, 328, "Pattern Table 1:", olc::WHITE);
-        for (uint8_t y = 0; y < 30; y++)
-        {
-            for (uint8_t x = 0; x < 32; x++)
-            {
-                uint8_t id = (u_int32_t)bus.ppu.nametables[0][y * 32 + x];
-                DrawPartialSprite(x * 16, y * 16, &sprite, (id & 0x0F) << 3, ((id >> 4) & 0x0F) << 3, 8, 8, 2, 0);
-            }
-        }
         bus.ppu.get_pattern_table(1, selected_palette, &sprite);
+        // for (uint8_t y = 0; y < 30; y++)
+        // {
+        //     for (uint8_t x = 0; x < 32; x++)
+        //     {
+        //         uint8_t id = (u_int32_t)bus.ppu.nametables[0][y * 32 + x];
+        //         DrawPartialSprite(x * 16, y * 16, &sprite, (id & 0x0F) << 3, ((id >> 4) & 0x0F) << 3, 8, 8, 2, 0);
+        //     }
+        // }
         DrawSprite(648, 348, &sprite);
+
+        DrawSprite(0, 0, &bus.ppu.screen, 2);
 
         return true;
     }

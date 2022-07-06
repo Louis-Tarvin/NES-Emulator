@@ -5,8 +5,8 @@
 Ppu::Ppu()
 {
     // Init palette memory to all zeros
-    // for (auto &i : palettes)
-    //     i = 0x00;
+    for (auto &i : palettes)
+        i = 0x00;
 
     colour_map[0x00] = olc::Pixel(84, 84, 84);
     colour_map[0x01] = olc::Pixel(0, 30, 116);
@@ -93,23 +93,22 @@ uint8_t Ppu::read(uint16_t addr)
     switch (addr)
     {
     case 0x0000:
-        // PPU CTRL
+        // PPU Control
         // data = ppuctrl;
         break;
     case 0x0001:
-        // PPU MASK
+        // PPU Mask
         // data = ppumask;
         break;
     case 0x0002:
-        // PPU STATUS
-        // ppustatus |= 0b10000000;
+        // PPU Status
         data = ppustatus;
         // reading clears vblank flag and resets address latch
         ppustatus &= 0b01111111;
         address_latch = false;
         break;
     case 0x0007:
-        // PPU DATA
+        // PPU Data
         data = data_buffer;
         data_buffer = ppu_read(ppuaddr.reg);
         // no delay when reading palette data for some reason
@@ -130,7 +129,8 @@ void Ppu::write(uint16_t addr, uint8_t data)
     case 0x0000:
         // PPU Control
         ppuctrl = data;
-        addr_buffer.nametable = (ppuctrl & 0b00000011);
+        addr_buffer.nametable_y = (ppuctrl & 0b00000010);
+        addr_buffer.nametable_x = (ppuctrl & 0b00000001);
         break;
     case 0x0001:
         // PPU Mask
@@ -236,8 +236,7 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
     addr &= 0x3FFF;
     if (addr >= 0 && addr < 0x2000)
     {
-        // TODO: Pattern table write??
-        uint8_t x = 0;
+        // Can't write to pattern memory
     }
     else if (addr < 0x3F00)
     {
@@ -282,17 +281,153 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
     }
 }
 
+// Useful reference: https://www.nesdev.org/w/images/default/d/d1/Ntsc_timing.png
 void Ppu::clock()
 {
-    if (scanline == 261 && scanline_cycles == 0)
+    if (scanline == 261)
     {
-        // pre-render scanline: unset vblank flag
-        ppustatus &= 0b01111111;
-        emit_nmi = false;
+        // Pre-render scanline
+        if (scanline_cycles == 0)
+        {
+            // unset vblank flag
+            ppustatus &= 0b01111111;
+            // emit_nmi = false;
+        }
+        else if (scanline_cycles >= 280 && scanline_cycles < 305)
+        {
+            if (ppumask & 0b00011000)
+            {
+                // transfer y address from buffer
+                ppuaddr.fine_y = addr_buffer.fine_y;
+                ppuaddr.coarse_y = addr_buffer.coarse_y;
+                ppuaddr.nametable_y = addr_buffer.nametable_y;
+            }
+        }
     }
-
-    if (scanline == 241 && scanline_cycles == 0)
+    else if (scanline >= 0 && scanline < 240)
     {
+        if (scanline == 0 && scanline_cycles == 0)
+            scanline_cycles = 1; // skipped
+
+        // visible scanlines
+        if ((scanline_cycles >= 2 && scanline_cycles <= 257) || (scanline_cycles > 320 && scanline_cycles <= 337))
+        {
+            uint8_t phase = (scanline_cycles - 1) % 8;
+            if (phase == 0)
+            {
+                // load new data into shift registers
+                pattern_shift_reg_low = (pattern_shift_reg_low & 0xFF00) | pattern_table_tile_low;
+                pattern_shift_reg_high = (pattern_shift_reg_high & 0xFF00) | pattern_table_tile_high;
+                attribute_shift_reg_low = (attribute_shift_reg_low & 0xFF00) | ((attribute_table_byte & 0b01) ? 0xFF : 0x00);
+                attribute_shift_reg_high = (attribute_shift_reg_high & 0xFF00) | ((attribute_table_byte & 0b10) ? 0xFF : 0x00);
+            }
+            else if (phase == 1)
+            {
+                // load nametable byte
+                nametable_byte = ppu_read(0x2000 | (ppuaddr.reg & 0x0FFF));
+            }
+            else if (phase == 3)
+            {
+                // load attribute table byte (last two rows of nametable)
+                uint16_t attribute_table_offset = ppuaddr.coarse_x >> 2; // divide by 4
+                attribute_table_offset |= (ppuaddr.coarse_y >> 2) << 3;  // divide by 4 then shift to make room for x
+                attribute_table_offset |= ppuaddr.nametable_x << 10;     // index into correct nametable
+                attribute_table_offset |= ppuaddr.nametable_y << 11;
+                attribute_table_byte = ppu_read(0x23C0 | attribute_table_offset); // load byte
+                // choose corresponding 2-bit palette index
+                if ((ppuaddr.coarse_y % 4) >= 2)
+                    attribute_table_byte >>= 4; // if true then its the top tiles
+                if ((ppuaddr.coarse_x % 4) >= 2)
+                    attribute_table_byte >>= 2; // if true then its the left tile
+                attribute_table_byte &= 0x03;   // zero other bits
+            }
+            else if (phase == 5)
+            {
+                // load low pattern table tile byte
+                uint16_t base = (ppuctrl & 0b00010000) ? 0x1000 : 0; // get base address of pattern table
+                base += (uint16_t)nametable_byte << 4;               // times tile id by 16 (two 8 bit planes)
+                pattern_table_tile_low = ppu_read(base + ppuaddr.fine_y);
+            }
+            else if (phase == 7)
+            {
+                // load high pattern table tile byte
+                uint16_t base = (ppuctrl & 0b00010000) ? 0x1000 : 0; // get base address of pattern table
+                base += (uint16_t)nametable_byte << 4;               // times tile id by 16 (two 8 bit planes)
+                pattern_table_tile_high = ppu_read(base + ppuaddr.fine_y + 8);
+
+                if (ppumask & 0b00011000)
+                {
+                    // Increment coarse_x
+                    if (ppuaddr.coarse_x >= 31)
+                    {
+                        // crossing into other nametable
+                        ppuaddr.coarse_x = 0;
+                        ppuaddr.nametable_x = ~ppuaddr.nametable_x; // flip nametable X
+                    }
+                    else
+                    {
+                        ppuaddr.coarse_x++;
+                    }
+                }
+            }
+
+            if (scanline_cycles == 256)
+            {
+                if (ppumask & 0b00011000)
+                {
+                    // Increment fine_y
+                    if (ppuaddr.fine_y < 7)
+                    {
+                        ppuaddr.fine_y++;
+                    }
+                    else
+                    {
+                        // reached a row boundary: increment coarse_y
+                        ppuaddr.fine_y = 0;
+                        if (ppuaddr.coarse_y == 29)
+                        {
+                            // crossing into other nametable
+                            ppuaddr.coarse_y = 0;
+                            ppuaddr.nametable_y = ~ppuaddr.nametable_y; // flip nametable Y
+                        }
+                        else if (ppuaddr.coarse_y == 31)
+                        {
+                            ppuaddr.coarse_y = 0;
+                        }
+                        else
+                        {
+                            ppuaddr.coarse_y++;
+                        }
+                    }
+                }
+            }
+            else if (scanline_cycles == 257)
+            {
+                // load new data into shift registers
+                pattern_shift_reg_low = (pattern_shift_reg_low & 0xFF00) | pattern_table_tile_low;
+                pattern_shift_reg_high = (pattern_shift_reg_high & 0xFF00) | pattern_table_tile_high;
+                attribute_shift_reg_low = (attribute_shift_reg_low & 0xFF00) | ((attribute_table_byte & 0b01) ? 0xFF : 0x00);
+                attribute_shift_reg_high = (attribute_shift_reg_high & 0xFF00) | ((attribute_table_byte & 0b10) ? 0xFF : 0x00);
+                // transfer x address from buffer
+                if (ppumask & 0b00011000)
+                {
+                    ppuaddr.coarse_x = addr_buffer.coarse_x;
+                    ppuaddr.nametable_x = addr_buffer.nametable_x;
+                }
+            }
+            if (ppumask & 0b00001000)
+            {
+                // shift registers
+                pattern_shift_reg_low <<= 1;
+                pattern_shift_reg_high <<= 1;
+                attribute_shift_reg_low <<= 1;
+                attribute_shift_reg_high <<= 1;
+            }
+        }
+    }
+    else if (scanline == 240 && scanline_cycles == 1)
+    {
+        // post-render scanline
         // set vblank flag
         ppustatus |= 0b10000000;
         if (ppuctrl & 0b10000000)
@@ -300,6 +435,24 @@ void Ppu::clock()
             emit_nmi = true; // emit NMI
         }
     }
+
+    // render pixel to screen
+    u_int8_t colour_index = 0;
+    if (ppumask & 0b00001000)
+    {
+        // get pixel colour from shift register
+        uint8_t lsb = (pattern_shift_reg_low & (0x8000 >> fine_x)) > 0;
+        uint8_t msb = (pattern_shift_reg_high & (0x8000 >> fine_x)) > 0;
+        uint8_t pixel = lsb | (msb << 1);
+        // get palette from shift register
+        lsb = (attribute_shift_reg_low & (0x8000 >> fine_x)) > 0;
+        msb = (attribute_shift_reg_high & (0x8000 >> fine_x)) > 0;
+        uint8_t palette = lsb | (msb << 1);
+        // get resulting colour
+        colour_index = ppu_read(0x3F00 + (palette << 2) + pixel) & 0x3F;
+    }
+
+    screen.SetPixel(scanline_cycles - 1, scanline, colour_map[colour_index]);
 
     scanline_cycles++;
     if (scanline_cycles >= 341)
@@ -333,8 +486,6 @@ void Ppu::get_pattern_table(uint8_t index, uint8_t palette, olc::Sprite *sprite)
                     uint8_t colour_index = ppu_read(0x3F00 + (palette << 2) + pixel_colour_index) & 0x3F;
                     lsb = lsb >> 1;
                     msb = msb >> 1;
-                    // olc::Pixel background = (((pixel_x + pixel_y) % 2) == 0) ? olc::BLACK : olc::DARK_GREY;
-                    // olc::Pixel colour = pixel_colour_index ? olc::WHITE : background;
                     sprite->SetPixel(tile_x * 8 + (7 - pixel_x), tile_y * 8 + pixel_y, colour_map[colour_index]);
                 }
             }
