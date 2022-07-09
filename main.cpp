@@ -6,7 +6,7 @@
 class Emulator : public olc::PixelGameEngine
 {
 private:
-    int clockspeed = 1789770;
+    int clockspeed = 1789770 * 3;
     Bus bus;
     float frame_timer = 0;
     uint8_t selected_palette = 0;
@@ -52,7 +52,7 @@ public:
         if (realtime)
         {
             // run the correct number of clock cycles
-            for (int i = 0; i < (clockspeed * dt * 3); i++)
+            for (int i = 0; i < (clockspeed * dt); i++)
             {
                 bus.clock();
             }

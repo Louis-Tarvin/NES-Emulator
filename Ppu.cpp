@@ -618,6 +618,7 @@ void Ppu::clock()
     // get sprite colour
     uint8_t sprite_pixel = 0;
     uint8_t sprite_palette = 0;
+    bool sprite_priority = false;
     if (ppumask & 0b00010000)
     {
         sprite_zero_rendering = false;
@@ -633,6 +634,7 @@ void Ppu::clock()
                 {
                     // the first non-transparent sprite found is the one that is drawn
                     sprite_palette = (visible_sprites[i].attributes & 0x03) + 0x04;
+                    sprite_priority = (visible_sprites[i].attributes & 0x20) == 0;
                     if (i == 0)
                         sprite_zero_rendering = true;
                     break;
@@ -645,8 +647,16 @@ void Ppu::clock()
     uint8_t output_colour_index = 0;
     if (sprite_pixel != 0 && background_pixel != 0)
     {
-        // sprite is drawn
-        output_colour_index = ppu_read(0x3F00 + (sprite_palette << 2) + sprite_pixel) & 0x3F;
+        if (sprite_priority)
+        {
+            // sprite is drawn
+            output_colour_index = ppu_read(0x3F00 + (sprite_palette << 2) + sprite_pixel) & 0x3F;
+        }
+        else
+        {
+            // background is drawn
+            output_colour_index = ppu_read(0x3F00 + (background_palette << 2) + background_pixel) & 0x3F;
+        }
 
         if (sprite_zero_possible && sprite_zero_rendering && (ppumask & 0b00001000) && (ppumask & 0b00010000))
         {
