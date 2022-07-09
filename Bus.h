@@ -27,4 +27,9 @@ public:
 private:
     uint8_t cpu_cycle_delay = 0;
     uint8_t controller_state[2];
+
+    bool even_cycle = true;
+    bool dma_enabled = false;
+    uint8_t dma_addr = 0;
+    uint8_t dma_data = 0;
 };

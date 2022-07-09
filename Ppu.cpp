@@ -8,6 +8,16 @@ Ppu::Ppu()
     for (auto &i : palettes)
         i = 0x00;
 
+    // Init OAM to off screen
+    for (auto &i : oam)
+    {
+        i.y_top = 0xFF;
+        i.attributes = 0;
+        i.tile_index = 0;
+        i.x_left = 0;
+    }
+
+    // Init array which maps hex values to colours
     colour_map[0x00] = olc::Pixel(84, 84, 84);
     colour_map[0x01] = olc::Pixel(0, 30, 116);
     colour_map[0x02] = olc::Pixel(8, 16, 144);
@@ -107,6 +117,10 @@ uint8_t Ppu::read(uint16_t addr)
         ppustatus &= 0b01111111;
         address_latch = false;
         break;
+    case 0x0004:
+        // OAM Data
+        data = ((uint8_t *)oam)[oamaddr];
+        break;
     case 0x0007:
         // PPU Data
         data = data_buffer;
@@ -123,6 +137,14 @@ uint8_t Ppu::read(uint16_t addr)
 
 void Ppu::write(uint16_t addr, uint8_t data)
 {
+    if (addr == 0x4014)
+    {
+        // Begin Direct Memory Access
+        dma_page = data;
+        begin_dma = true;
+        return;
+    }
+
     addr &= 0x0007;
     switch (addr)
     {
@@ -135,6 +157,14 @@ void Ppu::write(uint16_t addr, uint8_t data)
     case 0x0001:
         // PPU Mask
         ppumask = data;
+        break;
+    case 0x0003:
+        // OAM Address
+        oamaddr = data;
+        break;
+    case 0x0004:
+        // OAM Data
+        ((uint8_t *)oam)[oamaddr] = data;
         break;
     case 0x0005:
         // PPU Scroll
@@ -281,6 +311,12 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
     }
 }
 
+/// write a byte to OAM memory
+void Ppu::write_oam_byte(uint8_t addr, uint8_t data)
+{
+    ((uint8_t *)oam)[addr] = data;
+}
+
 // Useful reference: https://www.nesdev.org/w/images/default/d/d1/Ntsc_timing.png
 void Ppu::clock()
 {
@@ -417,11 +453,107 @@ void Ppu::clock()
             }
             if (ppumask & 0b00001000)
             {
-                // shift registers
+                // shift background registers
                 pattern_shift_reg_low <<= 1;
                 pattern_shift_reg_high <<= 1;
                 attribute_shift_reg_low <<= 1;
                 attribute_shift_reg_high <<= 1;
+            }
+            if (ppumask & 0b00010000 && scanline_cycles < 258)
+            {
+                // decrement x coordinate of visible sprites
+                // when x is 0, the sprite is being rendered, so shift the registers
+                for (size_t i = 0; i < 8; i++)
+                {
+                    if (visible_sprites[i].x_left > 0)
+                    {
+                        visible_sprites[i].x_left--;
+                    }
+                    else
+                    {
+                        sprite_pixels_low[i] <<= 1;
+                        sprite_pixels_high[i] <<= 1;
+                    }
+                }
+            }
+        }
+
+        // Sprite Rendering
+
+        if (scanline_cycles == 257)
+        {
+            // clear visible sprites
+            for (size_t i = 0; i < 8; i++)
+            {
+                visible_sprites[i].y_top = 0xFF;
+                visible_sprites[i].tile_index = 0xFF;
+                visible_sprites[i].attributes = 0xFF;
+                visible_sprites[i].x_left = 0xFF;
+            }
+            num_visible_sprites = 0;
+
+            // Find up to 8 visible sprites
+            uint8_t num_sprites = 0;
+            uint8_t oam_index = 0;
+            while (oam_index < 64 && num_sprites < 9)
+            {
+                int16_t diff = (int16_t)scanline - (int16_t)oam[oam_index].y_top;
+                if (diff >= 0 && diff < ((ppuctrl & 0b00100000) ? 16 : 8))
+                {
+                    if (num_sprites < 8)
+                    {
+                        // sprite is visible next scanline, so add it to visible sprites
+                        std::memcpy(&visible_sprites[num_sprites], &oam[oam_index], sizeof(SpriteData));
+                        num_visible_sprites++;
+                    }
+                    else
+                    {
+                        // sprite overflow has occured, so set relevant flag
+                        ppustatus |= 0b00100000;
+                    }
+                    num_sprites++;
+                }
+                oam_index++;
+            }
+        }
+        else if (scanline_cycles == 340)
+        {
+            for (size_t i = 0; i < num_visible_sprites; i++)
+            {
+                uint16_t sprite_pixels_addr = 0;
+                if (ppuctrl & 0b00100000)
+                {
+                    // 8x16 tile TODO
+                    sprite_pixels_addr = (ppuctrl & 0b00001000) ? 0x1000 : 0;
+                    sprite_pixels_addr |= visible_sprites[i].tile_index << 4;  // times by 16 to get tile offset
+                    sprite_pixels_addr |= scanline - visible_sprites[i].y_top; // get row
+                }
+                else
+                {
+                    // 8x8 tile
+                    sprite_pixels_addr = (ppuctrl & 0b00001000) ? 0x1000 : 0;
+                    sprite_pixels_addr |= (uint16_t)visible_sprites[i].tile_index << 4;  // times by 16 to get tile offset
+                    sprite_pixels_addr |= scanline - (uint16_t)visible_sprites[i].y_top; // get row
+                }
+
+                sprite_pixels_low[i] = ppu_read(sprite_pixels_addr);
+                sprite_pixels_high[i] = ppu_read(sprite_pixels_addr + 8);
+
+                // check if sprite should be flipped vertically
+                if (visible_sprites[i].attributes & 0b01000000)
+                {
+                    // https://stackoverflow.com/a/2602885
+                    auto reversebyte = [](uint8_t b)
+                    {
+                        b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+                        b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+                        b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+                        return b;
+                    };
+
+                    sprite_pixels_low[i] = reversebyte(sprite_pixels_low[i]);
+                    sprite_pixels_high[i] = reversebyte(sprite_pixels_high[i]);
+                }
             }
         }
     }
@@ -437,22 +569,59 @@ void Ppu::clock()
     }
 
     // render pixel to screen
-    u_int8_t colour_index = 0;
+
+    // get background colour
+    uint8_t background_pixel = 0;
+    uint8_t background_palette = 0;
     if (ppumask & 0b00001000)
     {
         // get pixel colour from shift register
         uint8_t lsb = (pattern_shift_reg_low & (0x8000 >> fine_x)) > 0;
         uint8_t msb = (pattern_shift_reg_high & (0x8000 >> fine_x)) > 0;
-        uint8_t pixel = lsb | (msb << 1);
+        background_pixel = lsb | (msb << 1);
         // get palette from shift register
         lsb = (attribute_shift_reg_low & (0x8000 >> fine_x)) > 0;
         msb = (attribute_shift_reg_high & (0x8000 >> fine_x)) > 0;
-        uint8_t palette = lsb | (msb << 1);
-        // get resulting colour
-        colour_index = ppu_read(0x3F00 + (palette << 2) + pixel) & 0x3F;
+        background_palette = lsb | (msb << 1);
     }
 
-    screen.SetPixel(scanline_cycles - 1, scanline, colour_map[colour_index]);
+    // get sprite colour
+    uint8_t sprite_pixel = 0;
+    uint8_t sprite_palette = 0;
+    if (ppumask & 0b00010000)
+    {
+        for (size_t i = 0; i < num_visible_sprites; i++)
+        {
+            if (visible_sprites[i].x_left == 0)
+            {
+                // get pixel colour from shift register
+                uint8_t lsb = (sprite_pixels_low[i] & 0x80) > 0;
+                uint8_t msb = (sprite_pixels_high[i] & 0x80) > 0;
+                sprite_pixel = lsb | (msb << 1);
+                if (sprite_pixel != 0)
+                {
+                    // the first non-transparent sprite found is the one that is drawn
+                    sprite_palette = (visible_sprites[i].attributes & 0x03) + 0x04;
+                    break;
+                }
+            }
+        }
+    }
+
+    // get resulting colour
+    uint8_t output_colour_index = 0;
+    if (sprite_pixel != 0)
+    {
+        // sprite is drawn
+        output_colour_index = ppu_read(0x3F00 + (sprite_palette << 2) + sprite_pixel) & 0x3F;
+    }
+    else
+    {
+        // background is drawn
+        output_colour_index = ppu_read(0x3F00 + (background_palette << 2) + background_pixel) & 0x3F;
+    }
+
+    screen.SetPixel(scanline_cycles - 1, scanline, colour_map[output_colour_index]);
 
     scanline_cycles++;
     if (scanline_cycles >= 341)

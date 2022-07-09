@@ -8,8 +8,19 @@ class Ppu
 private:
     Cartridge *cartridge;
 
-    // uint8_t patterntables[2][4096];
+    struct SpriteData
+    {
+        uint8_t y_top;
+        uint8_t tile_index;
+        uint8_t attributes;
+        uint8_t x_left;
+    };
+
+    // Internal memory
     uint8_t palettes[32];
+    uint8_t nametables[2][1024];
+
+    SpriteData visible_sprites[8];
 
     // Registers
     uint8_t ppuctrl = 0;
@@ -43,6 +54,8 @@ private:
     uint8_t fine_x = 0;
     uint16_t scanline = 0;
     uint16_t scanline_cycles = 0;
+    uint8_t num_visible_sprites = 0;
+
     // Internal latches for background rendering
     uint8_t nametable_byte = 0;
     uint8_t attribute_table_byte = 0;
@@ -53,25 +66,35 @@ private:
     uint16_t attribute_shift_reg_low = 0;
     uint16_t attribute_shift_reg_high = 0;
 
+    // Internal latches for sprite rendering
+    uint8_t sprite_pixels_low[8];
+    uint8_t sprite_pixels_high[8];
+
 public:
-    uint8_t nametables[2][1024];
     Ppu();
     ~Ppu();
 
+    SpriteData oam[64];
     void connect_cartridge(Cartridge *cartridge);
+
     // reading and writing to main bus
     uint8_t read(uint16_t addr);
     void write(uint16_t addr, uint8_t data);
+
     // reading and writing to PPU bus
     uint8_t ppu_read(uint16_t addr);
     void ppu_write(uint16_t addr, uint8_t data);
 
+    // useful for debugging
     void get_pattern_table(uint8_t index, uint8_t palette, olc::Sprite *sprite);
     std::string display();
 
     void clock();
+    void write_oam_byte(uint8_t addr, uint8_t data);
 
     olc::Pixel colour_map[0x40];
     olc::Sprite screen = olc::Sprite(256, 240);
     bool emit_nmi = false;
+    bool begin_dma = false;
+    uint8_t dma_page = 0;
 };

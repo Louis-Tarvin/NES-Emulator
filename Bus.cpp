@@ -45,7 +45,7 @@ void Bus::write(uint16_t addr, uint8_t data)
     {
         mem[addr & 0x07FF] = data;
     }
-    else if (addr < 0x4000)
+    else if (addr < 0x4000 || addr == 0x4014)
     {
         ppu.write(addr, data);
     }
@@ -60,7 +60,31 @@ void Bus::clock()
     cpu_executing = true;
     if (cpu_cycle_delay == 0)
     {
-        cpu.clock();
+        if (!dma_enabled)
+        {
+            cpu.clock();
+        }
+        else
+        {
+            // OAM Direct Memory Access
+            if (even_cycle)
+            {
+                // read
+                dma_data = read(((u_int16_t)ppu.dma_page << 8) | dma_addr);
+            }
+            else
+            {
+                // write
+                ppu.write_oam_byte(dma_addr, dma_data);
+                dma_addr++;
+                if (dma_addr == 0)
+                {
+                    // DMA finished
+                    dma_enabled = false;
+                }
+            }
+            even_cycle = !even_cycle;
+        }
         cpu_cycle_delay = 3;
         if (cpu.just_completed)
             cpu_executing = false;
@@ -72,6 +96,15 @@ void Bus::clock()
     {
         ppu.emit_nmi = false;
         cpu.nmi();
+    }
+
+    // check if OAM DMA register was written to
+    if (ppu.begin_dma)
+    {
+        ppu.begin_dma = false;
+        dma_enabled = true;
+        dma_addr = 0x00;
+        even_cycle = true;
     }
 
     cpu_cycle_delay--;
