@@ -13,7 +13,7 @@ private:
     bool realtime = true;
 
 public:
-    Emulator() : bus(Bus("../roms/DonkeyKong.nes"))
+    Emulator() : bus(Bus("../roms/SuperMarioBros.nes"))
     {
         sAppName = "NES Emulator";
     }

@@ -69,6 +69,8 @@ private:
     // Internal latches for sprite rendering
     uint8_t sprite_pixels_low[8];
     uint8_t sprite_pixels_high[8];
+    bool sprite_zero_possible = false;
+    bool sprite_zero_rendering = false;
 
 public:
     Ppu();

@@ -255,6 +255,14 @@ uint8_t Ppu::ppu_read(uint16_t addr)
     else if (addr < 0x4000)
     {
         // Palette lookup
+        if (addr == 0x3F10)
+            addr = 0x3F00;
+        else if (addr == 0x3F14)
+            addr = 0x3F04;
+        else if (addr == 0x3F18)
+            addr = 0x3F08;
+        else if (addr == 0x3F1C)
+            addr = 0x3F0C;
         addr &= 0x1f;
         return palettes[addr];
     }
@@ -306,6 +314,14 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
     else if (addr < 0x4000)
     {
         // Palette write
+        if (addr == 0x3F10)
+            addr = 0x3F00;
+        else if (addr == 0x3F14)
+            addr = 0x3F04;
+        else if (addr == 0x3F18)
+            addr = 0x3F08;
+        else if (addr == 0x3F1C)
+            addr = 0x3F0C;
         addr &= 0x1f;
         palettes[addr] = data;
     }
@@ -325,9 +341,8 @@ void Ppu::clock()
         // Pre-render scanline
         if (scanline_cycles == 0)
         {
-            // unset vblank flag
-            ppustatus &= 0b01111111;
-            // emit_nmi = false;
+            ppustatus &= 0b00111111; // unset vblank and sprite zero hit flags
+            emit_nmi = false;        // reset NMI flag
         }
         else if (scanline_cycles >= 280 && scanline_cycles < 305)
         {
@@ -492,6 +507,8 @@ void Ppu::clock()
             }
             num_visible_sprites = 0;
 
+            sprite_zero_possible = false;
+
             // Find up to 8 visible sprites
             uint8_t num_sprites = 0;
             uint8_t oam_index = 0;
@@ -505,6 +522,11 @@ void Ppu::clock()
                         // sprite is visible next scanline, so add it to visible sprites
                         std::memcpy(&visible_sprites[num_sprites], &oam[oam_index], sizeof(SpriteData));
                         num_visible_sprites++;
+                        if (oam_index == 0)
+                        {
+                            // check if this is sprite zero
+                            sprite_zero_possible = true;
+                        }
                     }
                     else
                     {
@@ -532,14 +554,22 @@ void Ppu::clock()
                 {
                     // 8x8 tile
                     sprite_pixels_addr = (ppuctrl & 0b00001000) ? 0x1000 : 0;
-                    sprite_pixels_addr |= (uint16_t)visible_sprites[i].tile_index << 4;  // times by 16 to get tile offset
-                    sprite_pixels_addr |= scanline - (uint16_t)visible_sprites[i].y_top; // get row
+                    sprite_pixels_addr |= (uint16_t)visible_sprites[i].tile_index << 4; // times by 16 to get tile offset
+                    if (visible_sprites[i].attributes & 0b10000000)
+                    {
+                        // sprite is flipped vertically
+                        sprite_pixels_addr |= 7 - (scanline - (uint16_t)visible_sprites[i].y_top); // get row
+                    }
+                    else
+                    {
+                        sprite_pixels_addr |= scanline - (uint16_t)visible_sprites[i].y_top; // get row
+                    }
                 }
 
                 sprite_pixels_low[i] = ppu_read(sprite_pixels_addr);
                 sprite_pixels_high[i] = ppu_read(sprite_pixels_addr + 8);
 
-                // check if sprite should be flipped vertically
+                // check if sprite should be flipped horizontally
                 if (visible_sprites[i].attributes & 0b01000000)
                 {
                     // https://stackoverflow.com/a/2602885
@@ -590,6 +620,7 @@ void Ppu::clock()
     uint8_t sprite_palette = 0;
     if (ppumask & 0b00010000)
     {
+        sprite_zero_rendering = false;
         for (size_t i = 0; i < num_visible_sprites; i++)
         {
             if (visible_sprites[i].x_left == 0)
@@ -602,6 +633,8 @@ void Ppu::clock()
                 {
                     // the first non-transparent sprite found is the one that is drawn
                     sprite_palette = (visible_sprites[i].attributes & 0x03) + 0x04;
+                    if (i == 0)
+                        sprite_zero_rendering = true;
                     break;
                 }
             }
@@ -610,15 +643,33 @@ void Ppu::clock()
 
     // get resulting colour
     uint8_t output_colour_index = 0;
-    if (sprite_pixel != 0)
+    if (sprite_pixel != 0 && background_pixel != 0)
+    {
+        // sprite is drawn
+        output_colour_index = ppu_read(0x3F00 + (sprite_palette << 2) + sprite_pixel) & 0x3F;
+
+        if (sprite_zero_possible && sprite_zero_rendering && (ppumask & 0b00001000) && (ppumask & 0b00010000))
+        {
+            if (scanline_cycles >= 1 && scanline_cycles < 258)
+            {
+                ppustatus |= 0b01000000; // set sprite zero hit flag
+            }
+        }
+    }
+    else if (sprite_pixel != 0)
     {
         // sprite is drawn
         output_colour_index = ppu_read(0x3F00 + (sprite_palette << 2) + sprite_pixel) & 0x3F;
     }
-    else
+    else if (background_pixel != 0)
     {
         // background is drawn
         output_colour_index = ppu_read(0x3F00 + (background_palette << 2) + background_pixel) & 0x3F;
+    }
+    else
+    {
+        // draw background colour
+        output_colour_index = ppu_read(0x3F00);
     }
 
     screen.SetPixel(scanline_cycles - 1, scanline, colour_map[output_colour_index]);
