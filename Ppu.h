@@ -18,7 +18,6 @@ private:
 
     // Internal memory
     uint8_t palettes[32];
-    uint8_t nametables[2][1024];
 
     SpriteData visible_sprites[8];
 
@@ -77,6 +76,8 @@ public:
     ~Ppu();
 
     SpriteData oam[64];
+    uint8_t nametables[2][1024];
+
     void connect_cartridge(Cartridge *cartridge);
 
     // reading and writing to main bus

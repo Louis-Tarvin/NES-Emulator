@@ -10,10 +10,11 @@ private:
     Bus bus;
     float frame_timer = 0;
     uint8_t selected_palette = 0;
+    uint8_t selected_nametable = 0;
     bool realtime = true;
 
 public:
-    Emulator() : bus(Bus("../roms/SuperMarioBros.nes"))
+    Emulator() : bus(Bus("../roms/Galaga.nes"))
     {
         sAppName = "NES Emulator";
     }
@@ -41,6 +42,10 @@ public:
         // Cycle pattern table palette
         if (GetKey(olc::Key::P).bPressed)
             (++selected_palette) &= 0x07;
+
+        // Cycle visible nametable
+        if (GetKey(olc::Key::TAB).bPressed)
+            selected_nametable = 1 - selected_nametable;
 
         // Pause realtime execution
         if (GetKey(olc::Key::SPACE).bPressed)
@@ -86,14 +91,14 @@ public:
         DrawString(648, 338, "Pattern Table 1:", olc::WHITE);
         bus.ppu.get_pattern_table(1, selected_palette, &sprite);
         DrawSprite(648, 348, &sprite);
-        // for (uint8_t y = 0; y < 30; y++)
-        // {
-        //     for (uint8_t x = 0; x < 32; x++)
-        //     {
-        //         uint8_t id = (u_int32_t)bus.ppu.nametables[0][y * 32 + x];
-        //         DrawPartialSprite(x * 16, y * 16, &sprite, (id & 0x0F) << 3, ((id >> 4) & 0x0F) << 3, 8, 8, 2, 0);
-        //     }
-        // }
+        for (uint8_t y = 0; y < 30; y++)
+        {
+            for (uint8_t x = 0; x < 32; x++)
+            {
+                uint8_t id = (u_int32_t)bus.ppu.nametables[selected_nametable][y * 32 + x];
+                DrawPartialSprite((x * 8) + 516, (y * 8) + 98, &sprite, (id & 0x0F) << 3, ((id >> 4) & 0x0F) << 3, 8, 8, 1, 0);
+            }
+        }
 
         // Draw main screen
         DrawSprite(0, 0, &bus.ppu.screen, 2);

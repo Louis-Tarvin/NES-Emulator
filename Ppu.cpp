@@ -151,8 +151,8 @@ void Ppu::write(uint16_t addr, uint8_t data)
     case 0x0000:
         // PPU Control
         ppuctrl = data;
-        addr_buffer.nametable_y = (ppuctrl & 0b00000010);
-        addr_buffer.nametable_x = (ppuctrl & 0b00000001);
+        addr_buffer.nametable_y = (ppuctrl & 0b00000010) > 0;
+        addr_buffer.nametable_x = (ppuctrl & 0b00000001) > 0;
         break;
     case 0x0001:
         // PPU Mask
@@ -284,11 +284,11 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
         {
             if (addr >= 0 && addr < 0x0800)
             {
-                nametables[0][addr & 0x3ff] = data;
+                nametables[0][addr & 0x3FF] = data;
             }
             else if (addr < 0x1000)
             {
-                nametables[1][(addr - 0x0800) & 0x3ff] = data;
+                nametables[1][addr & 0x3FF] = data;
             }
         }
         else if (cartridge->mirroring == Mirroring::Vertical)
@@ -514,7 +514,7 @@ void Ppu::clock()
             uint8_t oam_index = 0;
             while (oam_index < 64 && num_sprites < 9)
             {
-                int16_t diff = (int16_t)scanline - (int16_t)oam[oam_index].y_top;
+                int16_t diff = ((int16_t)scanline - (int16_t)oam[oam_index].y_top);
                 if (diff >= 0 && diff < ((ppuctrl & 0b00100000) ? 16 : 8))
                 {
                     if (num_sprites < 8)
@@ -545,10 +545,37 @@ void Ppu::clock()
                 uint16_t sprite_pixels_addr = 0;
                 if (ppuctrl & 0b00100000)
                 {
-                    // 8x16 tile TODO
-                    sprite_pixels_addr = (ppuctrl & 0b00001000) ? 0x1000 : 0;
-                    sprite_pixels_addr |= visible_sprites[i].tile_index << 4;  // times by 16 to get tile offset
-                    sprite_pixels_addr |= scanline - visible_sprites[i].y_top; // get row
+                    // 8x16 tile
+                    sprite_pixels_addr = (visible_sprites[i].tile_index & 0x01) ? 0x1000 : 0;
+
+                    if (visible_sprites[i].attributes & 0b10000000)
+                    {
+                        // sprite is flipped vertically
+                        if (scanline - visible_sprites[i].y_top < 8)
+                        {
+                            // add one to get next tile
+                            sprite_pixels_addr |= (((uint16_t)(visible_sprites[i].tile_index & 0xFE) + 1)) << 4; // times by 16 to get tile offset
+                        }
+                        else
+                        {
+                            sprite_pixels_addr |= ((uint16_t)(visible_sprites[i].tile_index & 0xFE)) << 4; // times by 16 to get tile offset
+                        }
+                        sprite_pixels_addr |= 7 - ((scanline - (uint16_t)visible_sprites[i].y_top) & 0x07); // get row
+                    }
+                    else
+                    {
+                        // sprite is NOT flipped vertically
+                        if (scanline - visible_sprites[i].y_top < 8)
+                        {
+                            sprite_pixels_addr |= ((uint16_t)(visible_sprites[i].tile_index & 0xFE)) << 4; // times by 16 to get tile offset
+                        }
+                        else
+                        {
+                            // add one to get next tile
+                            sprite_pixels_addr |= (((uint16_t)(visible_sprites[i].tile_index & 0xFE) + 1)) << 4; // times by 16 to get tile offset
+                        }
+                        sprite_pixels_addr |= (scanline - (uint16_t)visible_sprites[i].y_top) & 0x07; // get row
+                    }
                 }
                 else
                 {
