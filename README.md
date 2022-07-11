@@ -1,6 +1,6 @@
 # NES Emulator
 
-A Nintendo Entertainment System emulator written in C++. This has only been tested on Linux, but should be cross-platform.
+A Nintendo Entertainment System emulator written in C++. This has only been tested on Linux but should be cross-platform.
 
 ---
 
@@ -37,13 +37,15 @@ Currently implemented mappers:
 
 ![screenshot](images/Screenshot.png)
 
-The main screen is drawn to the right, with debug information drawn to the left. This includes the values of internal registers, a nametable, and the pattern tables.
+The main screen is drawn to the left, with debug information drawn to the right. This includes the values of internal registers, the selected nametable (changed by pressing tab), and the pattern tables.
 
 ---
 
 ## Structure
 
-The structure of the code closely resembles the structure of the hardware itself, with busses being used to map addresses to the correct components, as shown in the following diagram:
+The structure of the code closely resembles the structure of the hardware itself, with busses being used to map addresses to the correct components. The functionality of the PPU bus is encapsulated within the PPU class, whereas the CPU bus is its own class which can be though of as the main class of the emulator.
+
+This structure is shown by the following diagram:
 
 ![layout](images/structure.svg)
 
