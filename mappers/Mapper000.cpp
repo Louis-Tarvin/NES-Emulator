@@ -8,12 +8,12 @@ Mapper000::~Mapper000()
 {
 }
 
-uint16_t Mapper000::map(uint16_t addr)
+uint32_t Mapper000::map(uint16_t addr)
 {
     return addr & (num_prg_banks > 1 ? 0x7FFF : 0x3FFF);
 }
 
-uint16_t Mapper000::ppu_map(uint16_t addr)
+uint32_t Mapper000::ppu_map(uint16_t addr)
 {
     return addr;
 }

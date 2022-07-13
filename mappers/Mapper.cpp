@@ -10,12 +10,14 @@ Mapper::~Mapper()
 {
 }
 
-uint16_t Mapper::map(uint16_t addr)
+uint32_t Mapper::map(uint16_t addr)
 {
     return addr;
 }
 
-uint16_t Mapper::ppu_map(uint16_t addr)
+void Mapper::write(uint16_t addr, uint8_t data) {}
+
+uint32_t Mapper::ppu_map(uint16_t addr)
 {
     return addr;
 }

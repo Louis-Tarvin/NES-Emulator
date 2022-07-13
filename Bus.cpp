@@ -53,6 +53,10 @@ void Bus::write(uint16_t addr, uint8_t data)
     {
         controller_state[0] = controller[0];
     }
+    else if (addr >= 0x8000 && addr <= 0xFFFF)
+    {
+        cartridge.write(addr, data);
+    }
 }
 
 void Bus::clock()

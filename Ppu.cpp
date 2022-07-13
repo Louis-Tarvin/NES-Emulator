@@ -266,7 +266,7 @@ uint8_t Ppu::ppu_read(uint16_t addr)
         addr &= 0x1f;
         return palettes[addr];
     }
-    return 0; // todo
+    return 0;
 }
 
 void Ppu::ppu_write(uint16_t addr, uint8_t data)
@@ -274,7 +274,8 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
     addr &= 0x3FFF;
     if (addr >= 0 && addr < 0x2000)
     {
-        // Can't write to pattern memory
+        // Write to pattern memory (CHR RAM)
+        cartridge->ppu_write(addr, data);
     }
     else if (addr < 0x3F00)
     {

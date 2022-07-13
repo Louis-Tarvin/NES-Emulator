@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include "mappers/Mapper000.h"
+#include "mappers/Mapper002.h"
 
 enum class Mirroring
 {
@@ -24,8 +25,10 @@ public:
     Cartridge(std::string file);
     ~Cartridge();
 
-    uint8_t read(u_int16_t addr);
+    uint8_t read(uint16_t addr);
+    void write(uint16_t addr, uint8_t data);
     uint8_t ppu_read(uint16_t addr);
+    void ppu_write(uint16_t addr, uint8_t data);
 
     Mirroring mirroring;
 };

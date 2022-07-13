@@ -15,7 +15,8 @@ A Nintendo Entertainment System emulator written in C++. This has only been test
 - [ ] more mappers
 
 Currently implemented mappers: 
-- mapper 0
+- NROM (000)
+- UxROM (002)
   
 ---
 

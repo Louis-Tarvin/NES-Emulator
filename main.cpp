@@ -14,7 +14,7 @@ private:
     bool realtime = true;
 
 public:
-    Emulator() : bus(Bus("../roms/Galaga.nes"))
+    Emulator() : bus(Bus("../roms/Backward_Branch.nes"))
     {
         sAppName = "NES Emulator";
     }

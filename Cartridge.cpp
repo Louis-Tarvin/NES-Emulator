@@ -49,13 +49,8 @@ Cartridge::Cartridge(std::string file)
         prg_rom.resize(16384 * header.pgr_rom_size);
         ifs.read((char *)prg_rom.data(), prg_rom.size());
 
-        // for (auto byte : prg_rom)
-        // {
-        //     std::cout << +byte << " ";
-        // }
-
         // Read CHR ROM
-        if (header.chr_rom_size)
+        if (header.chr_rom_size != 0)
         {
             chr_rom.resize(8192 * header.chr_rom_size);
         }
@@ -67,7 +62,22 @@ Cartridge::Cartridge(std::string file)
 
         ifs.close();
 
-        mapper = std::make_shared<Mapper000>(header.pgr_rom_size, header.chr_rom_size);
+        uint8_t mapper_number = (header.flags_2 & 0xF0) | (header.flags_1 >> 4);
+        std::cout << +mapper_number << "\n";
+
+        switch (mapper_number)
+        {
+        case 0:
+            mapper = std::make_shared<Mapper000>(header.pgr_rom_size, header.chr_rom_size);
+            break;
+        case 2:
+            mapper = std::make_shared<Mapper002>(header.pgr_rom_size, header.chr_rom_size);
+            break;
+        default:
+            std::cout << "The mapper used by this cartridge is not yet supported\n";
+            exit(1);
+            break;
+        }
     }
     else
     {
@@ -81,12 +91,23 @@ Cartridge::~Cartridge()
 
 uint8_t Cartridge::read(uint16_t addr)
 {
-    uint16_t mapped_addr = mapper->map(addr);
+    uint32_t mapped_addr = mapper->map(addr);
     return prg_rom[mapped_addr];
+}
+
+void Cartridge::write(uint16_t addr, uint8_t data)
+{
+    mapper->write(addr, data);
 }
 
 uint8_t Cartridge::ppu_read(u_int16_t addr)
 {
-    uint16_t mapped_addr = mapper->ppu_map(addr);
+    uint32_t mapped_addr = mapper->ppu_map(addr);
     return chr_rom[mapped_addr];
+}
+
+void Cartridge::ppu_write(uint16_t addr, uint8_t data)
+{
+    uint32_t mapped_addr = mapper->ppu_map(addr);
+    chr_rom[mapped_addr] = data;
 }
