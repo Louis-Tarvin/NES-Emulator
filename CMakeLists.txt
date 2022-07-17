@@ -5,7 +5,7 @@ include(CTest)
 enable_testing()
 
 SET(GCC_COVERAGE_COMPILE_FLAGS "-std=c++17")
-SET(GCC_COVERAGE_LINK_FLAGS    "-lX11 -lGL -lpthread -lpng -lstdc++fs")
+SET(GCC_COVERAGE_LINK_FLAGS    "-lX11 -lGL -lpthread -lpng -lstdc++fs -lopenal")
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
 SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
 

@@ -362,7 +362,7 @@ void Ppu::clock()
             scanline_cycles = 1; // skipped
 
         // visible scanlines
-        if ((scanline_cycles >= 2 && scanline_cycles <= 257) || (scanline_cycles > 320 && scanline_cycles <= 337))
+        if ((scanline_cycles >= 1 && scanline_cycles <= 257) || (scanline_cycles > 320 && scanline_cycles <= 337))
         {
             uint8_t phase = (scanline_cycles - 1) % 8;
             if (phase == 0)

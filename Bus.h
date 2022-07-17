@@ -4,6 +4,7 @@
 #include "Cartridge.h"
 #include "Cpu.h"
 #include "Ppu.h"
+#include "Apu.h"
 
 class Bus
 {
@@ -13,6 +14,7 @@ public:
 
     Cpu cpu;
     Ppu ppu;
+    Apu apu;
     std::array<uint8_t, 2048> mem;
     Cartridge cartridge;
     uint8_t controller[2];
@@ -20,7 +22,7 @@ public:
 
     uint8_t read(uint16_t addr);
     void write(uint16_t addr, uint8_t data);
-    void clock();
+    bool clock();
 
     std::string display();
 
@@ -32,4 +34,7 @@ private:
     bool dma_enabled = false;
     uint8_t dma_addr = 0;
     uint8_t dma_data = 0;
+    double time_per_sample = 1.0 / 44100.0;
+    double time_per_clock = 1.0 / 5369318.0;
+    double audio_timer = 0;
 };

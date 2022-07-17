@@ -21,9 +21,13 @@ uint8_t Bus::read(uint16_t addr)
     {
         return mem[addr & 0x07FF];
     }
-    else if (addr <= 0x3FFF)
+    else if (addr < 0x4000)
     {
         return ppu.read(addr & 0x0007);
+    }
+    else if (addr <= 0x4013 || addr == 0x4015 || addr == 0x4017)
+    {
+        return apu.read(addr);
     }
     else if (addr >= 0x8000 && addr <= 0xFFFF)
     {
@@ -49,6 +53,10 @@ void Bus::write(uint16_t addr, uint8_t data)
     {
         ppu.write(addr, data);
     }
+    else if (addr <= 0x4013 || addr == 0x4015 || addr == 0x4017)
+    {
+        apu.write(addr, data);
+    }
     else if (addr == 0x4016)
     {
         controller_state[0] = controller[0];
@@ -59,7 +67,7 @@ void Bus::write(uint16_t addr, uint8_t data)
     }
 }
 
-void Bus::clock()
+bool Bus::clock()
 {
     cpu_executing = true;
     if (cpu_cycle_delay == 0)
@@ -95,6 +103,15 @@ void Bus::clock()
     }
     ppu.clock();
 
+    // Check if the audio sample is ready to be played
+    bool audio_ready = false;
+    audio_timer += time_per_clock;
+    if (audio_timer >= time_per_sample)
+    {
+        audio_timer -= time_per_sample;
+        audio_ready = true;
+    }
+
     // check if the PPU has triggered a non-maskable interrupt
     if (ppu.emit_nmi)
     {
@@ -112,6 +129,8 @@ void Bus::clock()
     }
 
     cpu_cycle_delay--;
+
+    return audio_ready;
 }
 
 /// Return a string representation of the bus for debugging

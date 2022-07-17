@@ -1,7 +1,10 @@
 #include <sstream>
 #include <iostream>
+
 #include "Bus.h"
+
 #include "olcPixelGameEngine.h"
+#include "olcPGEX_Sound.h"
 
 class Emulator : public olc::PixelGameEngine
 {
@@ -13,15 +16,38 @@ private:
     uint8_t selected_nametable = 0;
     bool realtime = true;
 
+    static Emulator *emulator_pointer;
+
 public:
-    Emulator() : bus(Bus("../roms/Backward_Branch.nes"))
+    Emulator() : bus(Bus("../roms/SuperMarioBros.nes"))
     {
         sAppName = "NES Emulator";
+    }
+
+private:
+    static float SoundOut(int nChannel, float fGlobalTime, float fTimeStep)
+    {
+        // emulator_pointer->bus.clock();
+        if (nChannel == 0)
+        {
+            while (!emulator_pointer->bus.clock())
+            {
+            };
+            return static_cast<float>(emulator_pointer->bus.apu.get_sample(fGlobalTime));
+            // return sinf(fGlobalTime * 1000.0);
+            // return 1.0f;
+        }
+        else
+            return 0.0f;
     }
 
     bool OnUserCreate() override
     {
         bus.cpu.reset();
+
+        emulator_pointer = this;
+        olc::SOUND::InitialiseAudio(44100, 1, 8, 512);
+        olc::SOUND::SetUserSynthFunction(SoundOut);
 
         return true;
     }
@@ -54,29 +80,29 @@ public:
         // clear the screen
         Clear(olc::BLACK);
 
-        if (realtime)
-        {
-            // run the correct number of clock cycles
-            for (int i = 0; i < (clockspeed * dt); i++)
-            {
-                bus.clock();
-            }
-        }
-        else
-        {
-            // Use enter key to step through instructions
-            if (GetKey(olc::Key::ENTER).bPressed || GetKey(olc::Key::SHIFT).bHeld)
-            {
-                // perform PPU clocks
-                bus.clock();
-                bus.clock();
-                bus.clock();
-                while (bus.cpu_executing)
-                    bus.clock(); // wait for CPU to finish executing
-            }
-            if (GetKey(olc::Key::N).bPressed)
-                bus.cpu.nmi(); // emit NMI
-        }
+        // if (realtime)
+        // {
+        //     // run the correct number of clock cycles
+        //     for (int i = 0; i < (clockspeed * dt); i++)
+        //     {
+        //         bus.clock();
+        //     }
+        // }
+        // else
+        // {
+        //     // Use enter key to step through instructions
+        //     if (GetKey(olc::Key::ENTER).bPressed || GetKey(olc::Key::SHIFT).bHeld)
+        //     {
+        //         // perform PPU clocks
+        //         bus.clock();
+        //         bus.clock();
+        //         bus.clock();
+        //         while (bus.cpu_executing)
+        //             bus.clock(); // wait for CPU to finish executing
+        //     }
+        //     if (GetKey(olc::Key::N).bPressed)
+        //         bus.cpu.nmi(); // emit NMI
+        // }
 
         if (!realtime)
             DrawString(516, 0, "paused", olc::YELLOW);
@@ -105,7 +131,15 @@ public:
 
         return true;
     }
+
+    bool OnUserDestroy() override
+    {
+        olc::SOUND::DestroyAudio();
+        return true;
+    }
 };
+
+Emulator *Emulator::emulator_pointer = nullptr;
 
 int main(int argc, char const *argv[])
 {
