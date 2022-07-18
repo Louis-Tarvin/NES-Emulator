@@ -335,8 +335,12 @@ void Ppu::write_oam_byte(uint8_t addr, uint8_t data)
 }
 
 // Useful reference: https://www.nesdev.org/w/images/default/d/d1/Ntsc_timing.png
-void Ppu::clock()
+bool Ppu::clock()
 {
+    bool quarter_frame = false;
+    if (scanline_cycles == 0 && (scanline == 0 || scanline == 131 || scanline == 66 || scanline == 197))
+        quarter_frame = true;
+
     if (scanline == 261)
     {
         // Pre-render scanline
@@ -722,6 +726,8 @@ void Ppu::clock()
             scanline = 0;
         }
     }
+
+    return quarter_frame;
 }
 
 void Ppu::get_pattern_table(uint8_t index, uint8_t palette, olc::Sprite *sprite)

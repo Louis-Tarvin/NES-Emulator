@@ -92,7 +92,8 @@ public:
     void get_pattern_table(uint8_t index, uint8_t palette, olc::Sprite *sprite);
     std::string display();
 
-    void clock();
+    // clock the PPU (draws one pixel). Returns true every quarter frame
+    bool clock();
     void write_oam_byte(uint8_t addr, uint8_t data);
 
     olc::Pixel colour_map[0x40];

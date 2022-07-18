@@ -101,7 +101,9 @@ bool Bus::clock()
         if (cpu.just_completed)
             cpu_executing = false;
     }
-    ppu.clock();
+    bool quarter_frame = ppu.clock();
+    if (quarter_frame)
+        apu.quarter_frame();
 
     // Check if the audio sample is ready to be played
     bool audio_ready = false;
