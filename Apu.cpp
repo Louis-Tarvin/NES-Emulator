@@ -44,6 +44,7 @@ void Apu::write(uint16_t addr, uint8_t data)
     {
     case 0x4000:
         pulse_1_halt = (data & 0b00100000);
+        pulse_1_envelope.loop = pulse_1_halt;
         pulse_1_envelope.volume = (data & 0x0F);
         pulse_1_envelope.constant_volume = (data & 0b00010000) > 0;
         switch ((data & 11000000) >> 6)
@@ -67,16 +68,15 @@ void Apu::write(uint16_t addr, uint8_t data)
         break;
     case 0x4002:
         pulse_1_t = (pulse_1_t & 0xFF00) | data;
-        pulse_1_active = pulse_1_t >= 8;
         break;
     case 0x4003:
         pulse_1_length_counter = length_lookup[(data & 0b11111000) >> 3];
         pulse_1_t = (pulse_1_t & 0x00FF) | ((data & 0b00000111) << 8);
-        pulse_1_active = pulse_1_t >= 8;
-        // pulse_1_envelope.start = true;
+        pulse_1_envelope.start = true;
         break;
     case 0x4004:
         pulse_2_halt = (data & 0b00100000);
+        pulse_2_envelope.loop = pulse_2_halt;
         pulse_2_envelope.volume = (data & 0x0F);
         pulse_2_envelope.constant_volume = (data & 0b00010000) > 0;
         switch ((data & 11000000) >> 6)
@@ -100,54 +100,59 @@ void Apu::write(uint16_t addr, uint8_t data)
         break;
     case 0x4006:
         pulse_2_t = (pulse_2_t & 0xFF00) | data;
-        pulse_2_active = pulse_2_t >= 8;
         break;
     case 0x4007:
         pulse_2_length_counter = length_lookup[(data & 0b11111000) >> 3];
         pulse_2_t = (pulse_2_t & 0x00FF) | ((data & 0b00000111) << 8);
-        pulse_2_active = pulse_2_t >= 8;
-        // pulse_2_envelope.start = true;
+        pulse_2_envelope.start = true;
         break;
+    case 0x4015:
+        pulse_1_active = (data & 0b00000001);
+        if (!pulse_1_active)
+            pulse_1_length_counter = 0;
+        pulse_2_active = (data & 0b00000010);
+        if (!pulse_2_active)
+            pulse_2_length_counter = 0;
     default:
         break;
     }
 }
 
-void Apu::update_envelope(envelope env)
+void Apu::update_envelope(envelope *env)
 {
-    if (env.start)
+    if (env->start)
     {
-        env.start = false;
-        env.decay_level = 15;
-        env.divider = env.volume;
+        env->start = false;
+        env->decay_level = 15;
+        env->divider = env->volume;
     }
     else
     {
-        if (env.divider == 0)
+        if (env->divider == 0)
         {
-            env.divider = env.volume;
-            if (env.decay_level == 0)
+            env->divider = env->volume;
+            if (env->decay_level == 0)
             {
-                if (env.loop)
-                    env.decay_level = 15;
+                if (env->loop)
+                    env->decay_level = 15;
             }
             else
-                env.decay_level--;
+                env->decay_level--;
         }
         else
-            env.divider--;
+            env->divider--;
     }
 
-    if (env.constant_volume)
-        env.amplitude = env.volume;
+    if (env->constant_volume)
+        env->amplitude = env->volume;
     else
-        env.amplitude = env.decay_level;
+        env->amplitude = env->decay_level;
 }
 
 void Apu::quarter_frame()
 {
-    update_envelope(pulse_1_envelope);
-    update_envelope(pulse_2_envelope);
+    update_envelope(&pulse_1_envelope);
+    update_envelope(&pulse_2_envelope);
 
     if (half_frame)
     {
@@ -157,40 +162,34 @@ void Apu::quarter_frame()
         // length counting
         if (pulse_1_length_counter > 0)
         {
-            if (!pulse_1_halt)
+            if (!pulse_1_halt && pulse_1_length_counter > 0)
                 pulse_1_length_counter--;
-            if (pulse_1_length_counter == 0)
-                pulse_1_active = false;
         }
         if (pulse_2_length_counter > 0)
         {
-            if (!pulse_2_halt)
+            if (!pulse_2_halt && pulse_2_length_counter > 0)
                 pulse_2_length_counter--;
-            if (pulse_2_length_counter == 0)
-                pulse_2_active = false;
         }
 
         // frequency sweeping
         if (pulse_1_sweep.enabled)
         {
-            pulse_1_sweep_timer--;
             if (pulse_1_sweep_timer == 0)
             {
                 pulse_1_sweep_timer = pulse_1_sweep.period;
                 int delta = pulse_1_t >> pulse_1_sweep.shift;
                 if (pulse_1_sweep.negate)
+                {
                     delta *= -1;
+                    delta--;
+                }
                 int target_t = (int)pulse_1_t + delta;
-                if (target_t > 0x7FF || target_t < 8)
-                {
-                    pulse_1_active = false;
-                }
-                else
-                {
+                if (target_t < 0x7FF || target_t >= 8)
                     pulse_1_t = target_t;
-                }
             }
+            pulse_1_sweep_timer--;
         }
+        pulse_1_sweep_mute = (pulse_1_t < 8) || (pulse_1_t > 0x7FF);
         if (pulse_2_sweep.enabled)
         {
             pulse_2_sweep_timer--;
@@ -201,16 +200,11 @@ void Apu::quarter_frame()
                 if (pulse_2_sweep.negate)
                     delta *= -1;
                 int target_t = (int)pulse_2_t + delta;
-                if (target_t > 0x7FF || target_t < 8)
-                {
-                    pulse_2_active = false;
-                }
-                else
-                {
+                if (target_t < 0x7FF || target_t >= 8)
                     pulse_2_t = target_t;
-                }
             }
         }
+        pulse_2_sweep_mute = (pulse_2_t < 8) || (pulse_2_t > 0x7FF);
     }
     else
     {
@@ -245,9 +239,12 @@ double pulse_sample(float global_time, uint16_t t, float offset)
 double Apu::get_sample(float global_time)
 {
     double pulse_1_amplitude = (((double)(pulse_1_envelope.amplitude - 1)) / 160.0);
-    double pulse_1_sample = pulse_1_active ? pulse_sample(global_time, pulse_1_t, pulse_1_offset) * pulse_1_amplitude : 0.0;
+    bool pulse_1_enable = (pulse_1_active && pulse_1_t >= 8 && pulse_1_length_counter > 0 && pulse_1_envelope.amplitude > 2 && !pulse_1_sweep_mute);
+    double pulse_1_sample = pulse_1_enable ? pulse_sample(global_time, pulse_1_t, pulse_1_offset) * pulse_1_amplitude : 0.0;
+
     double pulse_2_amplitude = (((double)(pulse_2_envelope.amplitude - 1)) / 160.0);
-    double pulse_2_sample = pulse_2_active ? pulse_sample(global_time, pulse_2_t, pulse_2_offset) * pulse_2_amplitude : 0.0;
+    bool pulse_2_enable = (pulse_2_active && pulse_2_t >= 8 && pulse_2_length_counter > 0 && pulse_2_envelope.amplitude > 2 && !pulse_2_sweep_mute);
+    double pulse_2_sample = pulse_2_enable ? pulse_sample(global_time, pulse_2_t, pulse_2_offset) * pulse_2_amplitude : 0.0;
 
     return (pulse_1_sample + pulse_2_sample) * 0.5;
 }

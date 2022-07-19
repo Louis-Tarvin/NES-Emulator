@@ -34,6 +34,7 @@ private:
     bool pulse_1_halt = false;
     sweep pulse_1_sweep;
     uint8_t pulse_1_sweep_timer = 1;
+    bool pulse_1_sweep_mute = false;
     uint8_t pulse_1_length_counter = 0;
     uint16_t pulse_1_t = 0;
     envelope pulse_1_envelope;
@@ -44,11 +45,12 @@ private:
     bool pulse_2_halt = false;
     sweep pulse_2_sweep;
     uint8_t pulse_2_sweep_timer = 1;
+    bool pulse_2_sweep_mute = false;
     uint8_t pulse_2_length_counter = 0;
     uint16_t pulse_2_t = 0;
     envelope pulse_2_envelope;
 
-    void update_envelope(envelope env);
+    void update_envelope(envelope *env);
 
 public:
     Apu();
