@@ -106,6 +106,18 @@ void Apu::write(uint16_t addr, uint8_t data)
         pulse_2_t = (pulse_2_t & 0x00FF) | ((data & 0b00000111) << 8);
         pulse_2_envelope.start = true;
         break;
+    case 0x4008:
+        triangle_control_flag = (data & 0b10000000);
+        triangle_counter_reload = (data & 0b01111111);
+        break;
+    case 0x400A:
+        triangle_t = (triangle_t & 0xFF00) | data;
+        break;
+    case 0x400B:
+        triangle_t = (triangle_t & 0x00FF) | ((data & 0b00000111) << 8);
+        triangle_length_counter = length_lookup[(data & 0b11111000) >> 3];
+        triangle_reload_flag = true;
+        break;
     case 0x4015:
         pulse_1_active = (data & 0b00000001);
         if (!pulse_1_active)
@@ -113,11 +125,13 @@ void Apu::write(uint16_t addr, uint8_t data)
         pulse_2_active = (data & 0b00000010);
         if (!pulse_2_active)
             pulse_2_length_counter = 0;
+        triangle_active = (data & 0b00000100);
     default:
         break;
     }
 }
 
+// Updates the envelopes output amplitude
 void Apu::update_envelope(envelope *env)
 {
     if (env->start)
@@ -154,22 +168,29 @@ void Apu::quarter_frame()
     update_envelope(&pulse_1_envelope);
     update_envelope(&pulse_2_envelope);
 
+    // update triangle channel's linear counter
+    if (triangle_reload_flag)
+        triangle_linear_counter = triangle_counter_reload;
+    else if (triangle_linear_counter > 0)
+        triangle_linear_counter--;
+
+    if (!triangle_control_flag)
+        triangle_reload_flag = false;
+
     if (half_frame)
     {
-        // This code is run every other quarter frame (every half frame)
         half_frame = false;
+        // This code is run every other quarter frame (every half frame)
 
         // length counting
-        if (pulse_1_length_counter > 0)
-        {
-            if (!pulse_1_halt && pulse_1_length_counter > 0)
-                pulse_1_length_counter--;
-        }
-        if (pulse_2_length_counter > 0)
-        {
-            if (!pulse_2_halt && pulse_2_length_counter > 0)
-                pulse_2_length_counter--;
-        }
+        if (!pulse_1_halt && pulse_1_length_counter > 0)
+            pulse_1_length_counter--;
+
+        if (!pulse_2_halt && pulse_2_length_counter > 0)
+            pulse_2_length_counter--;
+
+        if (!triangle_control_flag && triangle_length_counter > 0)
+            triangle_length_counter--;
 
         // frequency sweeping
         if (pulse_1_sweep.enabled)
@@ -216,7 +237,7 @@ double pulse_sample(float global_time, uint16_t t, float offset)
 {
     float frequency = 1789773.0 / (16.0 * (double)(t + 1));
 
-    // https://youtu.be/1xlCVBIF_ig
+    // fast approximation of sin() (https://youtu.be/1xlCVBIF_ig)
     auto approxsin = [](float x)
     {
         float j = x * 0.15915;
@@ -236,15 +257,48 @@ double pulse_sample(float global_time, uint16_t t, float offset)
     return (a - b);
 }
 
+double get_triangle_sample(float global_time, uint16_t t)
+{
+    float frequency = 1789773.0 / (32.0 * (double)(t + 1));
+
+    double ft = (double)frequency * (double)global_time;
+
+    return 2 * std::abs(ft - floor(ft + 0.5));
+}
+
 double Apu::get_sample(float global_time)
 {
+    // Pulse 1
     double pulse_1_amplitude = (((double)(pulse_1_envelope.amplitude - 1)) / 160.0);
     bool pulse_1_enable = (pulse_1_active && pulse_1_t >= 8 && pulse_1_length_counter > 0 && pulse_1_envelope.amplitude > 2 && !pulse_1_sweep_mute);
     double pulse_1_sample = pulse_1_enable ? pulse_sample(global_time, pulse_1_t, pulse_1_offset) * pulse_1_amplitude : 0.0;
 
+    // Pulse 2
     double pulse_2_amplitude = (((double)(pulse_2_envelope.amplitude - 1)) / 160.0);
     bool pulse_2_enable = (pulse_2_active && pulse_2_t >= 8 && pulse_2_length_counter > 0 && pulse_2_envelope.amplitude > 2 && !pulse_2_sweep_mute);
     double pulse_2_sample = pulse_2_enable ? pulse_sample(global_time, pulse_2_t, pulse_2_offset) * pulse_2_amplitude : 0.0;
 
-    return (pulse_1_sample + pulse_2_sample) * 0.5;
+    // Triangle
+    bool triangle_enable = (triangle_active && triangle_length_counter > 0 && triangle_linear_counter > 0);
+    double triangle_sample = 0.0;
+    // Attempting to prevent audio 'pops' by only enabling/disabling the channel when the output is close to 0
+    if (triangle_enable)
+    {
+        double sample = get_triangle_sample(global_time, triangle_t) * 0.5;
+        if (!(triangle_was_off && std::abs(sample) > 0.01))
+        {
+            triangle_sample = sample;
+            triangle_was_off = false;
+        }
+    }
+    else
+    {
+        double sample = get_triangle_sample(global_time, triangle_t) * 0.5;
+        if ((!triangle_was_off && std::abs(sample) > 0.01))
+            triangle_sample = sample;
+        else
+            triangle_was_off = true;
+    }
+
+    return (pulse_1_sample + pulse_2_sample + triangle_sample) * 0.5;
 }

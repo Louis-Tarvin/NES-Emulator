@@ -50,6 +50,16 @@ private:
     uint16_t pulse_2_t = 0;
     envelope pulse_2_envelope;
 
+    // Triangle channel variables
+    bool triangle_active = false;
+    uint8_t triangle_counter_reload = 0;
+    bool triangle_control_flag = false;
+    bool triangle_reload_flag = false;
+    uint16_t triangle_t = 0;
+    uint8_t triangle_length_counter = 0;
+    uint8_t triangle_linear_counter = 0;
+    bool triangle_was_off = false;
+
     void update_envelope(envelope *env);
 
 public:

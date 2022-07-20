@@ -27,15 +27,12 @@ public:
 private:
     static float SoundOut(int nChannel, float fGlobalTime, float fTimeStep)
     {
-        // emulator_pointer->bus.clock();
         if (nChannel == 0)
         {
             while (!emulator_pointer->bus.clock())
             {
             };
             return static_cast<float>(emulator_pointer->bus.apu.get_sample(fGlobalTime));
-            // return sinf(fGlobalTime * 1000.0);
-            // return 1.0f;
         }
         else
             return 0.0f;
