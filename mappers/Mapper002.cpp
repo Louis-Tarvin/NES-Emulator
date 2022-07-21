@@ -1,6 +1,6 @@
 #include "Mapper002.h"
 
-Mapper002::Mapper002(uint8_t prg_banks, uint8_t chr_banks) : Mapper(prg_banks, chr_banks)
+Mapper002::Mapper002(uint8_t prg_banks, uint8_t chr_banks, Mirroring m) : Mapper(prg_banks, chr_banks, m)
 {
 }
 

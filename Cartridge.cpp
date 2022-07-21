@@ -43,7 +43,7 @@ Cartridge::Cartridge(std::string file)
             ifs.seekg(512, std::ios_base::cur);
         }
 
-        mirroring = (header.flags_1 & 1) ? Mirroring::Vertical : Mirroring::Horizontal;
+        Mirroring mirroring = (header.flags_1 & 1) ? Mirroring::Vertical : Mirroring::Horizontal;
 
         // Read PGR ROM
         prg_rom.resize(16384 * header.pgr_rom_size);
@@ -68,10 +68,13 @@ Cartridge::Cartridge(std::string file)
         switch (mapper_number)
         {
         case 0:
-            mapper = std::make_shared<Mapper000>(header.pgr_rom_size, header.chr_rom_size);
+            mapper = std::make_shared<Mapper000>(header.pgr_rom_size, header.chr_rom_size, mirroring);
+            break;
+        case 1:
+            mapper = std::make_shared<Mapper001>(header.pgr_rom_size, header.chr_rom_size, mirroring);
             break;
         case 2:
-            mapper = std::make_shared<Mapper002>(header.pgr_rom_size, header.chr_rom_size);
+            mapper = std::make_shared<Mapper002>(header.pgr_rom_size, header.chr_rom_size, mirroring);
             break;
         default:
             std::cout << "The mapper used by this cartridge is not yet supported\n";
@@ -91,13 +94,31 @@ Cartridge::~Cartridge()
 
 uint8_t Cartridge::read(uint16_t addr)
 {
-    uint32_t mapped_addr = mapper->map(addr);
-    return prg_rom[mapped_addr];
+    if (addr >= 0x6000 && addr < 0x8000)
+    {
+        // PRG RAM
+        return mapper->prg_ram_read(addr);
+    }
+    else
+    {
+        // PRG ROM
+        uint32_t mapped_addr = mapper->map(addr);
+        return prg_rom[mapped_addr];
+    }
 }
 
 void Cartridge::write(uint16_t addr, uint8_t data)
 {
-    mapper->write(addr, data);
+    if (addr >= 0x6000 && addr < 0x8000)
+    {
+        // PRG RAM
+        mapper->prg_ram_write(addr, data);
+    }
+    else
+    {
+        // PRG ROM
+        mapper->write(addr, data);
+    }
 }
 
 uint8_t Cartridge::ppu_read(u_int16_t addr)
@@ -110,4 +131,9 @@ void Cartridge::ppu_write(uint16_t addr, uint8_t data)
 {
     uint32_t mapped_addr = mapper->ppu_map(addr);
     chr_rom[mapped_addr] = data;
+}
+
+Mirroring Cartridge::get_mirroring()
+{
+    return mapper->get_mirroring();
 }

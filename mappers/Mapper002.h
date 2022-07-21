@@ -4,7 +4,7 @@
 class Mapper002 : public Mapper
 {
 public:
-    Mapper002(uint8_t prg_banks, uint8_t chr_banks);
+    Mapper002(uint8_t prg_banks, uint8_t chr_banks, Mirroring m);
     ~Mapper002();
 
     uint32_t map(uint16_t addr) override;

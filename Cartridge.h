@@ -3,15 +3,8 @@
 #include <string>
 #include <memory>
 #include "mappers/Mapper000.h"
+#include "mappers/Mapper001.h"
 #include "mappers/Mapper002.h"
-
-enum class Mirroring
-{
-    Horizontal,
-    Vertical,
-    Single,
-    Quad,
-};
 
 class Cartridge
 {
@@ -29,6 +22,5 @@ public:
     void write(uint16_t addr, uint8_t data);
     uint8_t ppu_read(uint16_t addr);
     void ppu_write(uint16_t addr, uint8_t data);
-
-    Mirroring mirroring;
+    Mirroring get_mirroring();
 };

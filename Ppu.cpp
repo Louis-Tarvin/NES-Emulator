@@ -221,7 +221,7 @@ uint8_t Ppu::ppu_read(uint16_t addr)
     {
         // Nametable lookup
         addr &= 0x0FFF; // mirroring
-        if (cartridge->mirroring == Mirroring::Horizontal)
+        if (cartridge->get_mirroring() == Mirroring::Horizontal)
         {
             if (addr >= 0 && addr < 0x0800)
             {
@@ -232,7 +232,7 @@ uint8_t Ppu::ppu_read(uint16_t addr)
                 return nametables[1][addr & 0x3FF];
             }
         }
-        else if (cartridge->mirroring == Mirroring::Vertical)
+        else if (cartridge->get_mirroring() == Mirroring::Vertical)
         {
             if (addr >= 0 && addr < 0x0400)
             {
@@ -281,7 +281,7 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
     {
         // Nametable write
         addr &= 0x0FFF; // mirroring
-        if (cartridge->mirroring == Mirroring::Horizontal)
+        if (cartridge->get_mirroring() == Mirroring::Horizontal)
         {
             if (addr >= 0 && addr < 0x0800)
             {
@@ -292,7 +292,7 @@ void Ppu::ppu_write(uint16_t addr, uint8_t data)
                 nametables[1][addr & 0x3FF] = data;
             }
         }
-        else if (cartridge->mirroring == Mirroring::Vertical)
+        else if (cartridge->get_mirroring() == Mirroring::Vertical)
         {
             if (addr >= 0 && addr < 0x0400)
             {
