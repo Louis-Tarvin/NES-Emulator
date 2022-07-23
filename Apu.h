@@ -4,6 +4,9 @@ class Apu
 {
 private:
     bool half_frame = false;
+    bool sequencer_mode = false;
+    bool irq_inhibit = false;
+    uint8_t clock_timer = 0;
 
     union sweep
     {
@@ -60,6 +63,16 @@ private:
     uint8_t triangle_linear_counter = 0;
     bool triangle_was_off = false;
 
+    // Noise channel variables
+    bool noise_active = false;
+    bool noise_halt = false;
+    bool noise_loop = false;
+    uint16_t noise_period = 0;
+    uint16_t noise_timer = 0;
+    uint8_t noise_length_counter = 0;
+    envelope noise_envelope;
+    uint16_t noise_shift_register = 1;
+
     void update_envelope(envelope *env);
 
 public:
@@ -69,5 +82,6 @@ public:
     uint8_t read(uint16_t addr);
     void write(uint16_t addr, uint8_t data);
     void quarter_frame();
+    void clock();
     double get_sample(float global_time);
 };

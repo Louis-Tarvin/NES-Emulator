@@ -102,6 +102,7 @@ bool Bus::clock()
             cpu_executing = false;
     }
     bool quarter_frame = ppu.clock();
+    apu.clock();
     if (quarter_frame)
         apu.quarter_frame();
 

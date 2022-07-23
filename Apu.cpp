@@ -8,6 +8,10 @@ uint8_t length_lookup[] = {10, 254, 20, 2, 40, 4, 80, 6,
                            12, 16, 24, 18, 48, 20, 96, 22,
                            192, 24, 72, 26, 16, 28, 32, 30};
 
+uint16_t noise_period_lookup[] = {4, 8, 16, 32, 64, 96, 128,
+                                  160, 202, 254, 380, 508,
+                                  762, 1016, 2034, 4068};
+
 Apu::Apu()
 {
     pulse_1_envelope.amplitude = 0;
@@ -26,11 +30,18 @@ uint8_t Apu::read(uint16_t addr)
     case 0x4000:
         break;
     case 0x4001:
-        data = pulse_1_sweep.reg;
         break;
     case 0x4002:
         break;
     case 0x4003:
+        break;
+    case 0x4015:
+        if (pulse_1_length_counter > 0)
+            data |= 0b00000001;
+        if (pulse_2_length_counter > 0)
+            data |= 0b00000010;
+        if (triangle_length_counter > 0)
+            data |= 0b00000100;
         break;
     default:
         break;
@@ -118,6 +129,18 @@ void Apu::write(uint16_t addr, uint8_t data)
         triangle_length_counter = length_lookup[(data & 0b11111000) >> 3];
         triangle_reload_flag = true;
         break;
+    case 0x400C:
+        noise_halt = (data & 0b00100000);
+        noise_envelope.constant_volume = (data & 0b00010000);
+        noise_envelope.volume = (data & 0x0F);
+        break;
+    case 0x400E:
+        noise_loop = (data & 0b10000000);
+        noise_period = noise_period_lookup[(data & 0x0F)];
+        break;
+    case 0x400F:
+        noise_length_counter = length_lookup[(data & 0b11111000) >> 3];
+        break;
     case 0x4015:
         pulse_1_active = (data & 0b00000001);
         if (!pulse_1_active)
@@ -126,6 +149,12 @@ void Apu::write(uint16_t addr, uint8_t data)
         if (!pulse_2_active)
             pulse_2_length_counter = 0;
         triangle_active = (data & 0b00000100);
+        noise_active = (data & 0b00001000);
+        if (!noise_active)
+            noise_length_counter = 0;
+    case 0x4017:
+        sequencer_mode = (data & 0b10000000);
+        irq_inhibit = (data & 0b01000000);
     default:
         break;
     }
@@ -163,10 +192,37 @@ void Apu::update_envelope(envelope *env)
         env->amplitude = env->decay_level;
 }
 
+void Apu::clock()
+{
+    if (clock_timer == 0)
+    {
+        clock_timer == 6;
+        // update noise
+        if (noise_active)
+        {
+            if (noise_timer == 0)
+            {
+                noise_timer = noise_period;
+                uint16_t feedback;
+                if (noise_loop)
+                    feedback = (noise_shift_register & 0x40) ^ (noise_shift_register & 1);
+                else
+                    feedback = ((noise_shift_register & 2) >> 1) ^ (noise_shift_register & 1);
+                noise_shift_register = (noise_shift_register >> 1) | (feedback << 14);
+            }
+            else
+                noise_timer--;
+        }
+    }
+    else
+        clock_timer--;
+}
+
 void Apu::quarter_frame()
 {
     update_envelope(&pulse_1_envelope);
     update_envelope(&pulse_2_envelope);
+    update_envelope(&noise_envelope);
 
     // update triangle channel's linear counter
     if (triangle_reload_flag)
@@ -191,6 +247,9 @@ void Apu::quarter_frame()
 
         if (!triangle_control_flag && triangle_length_counter > 0)
             triangle_length_counter--;
+
+        if (!noise_halt && noise_length_counter > 0)
+            noise_length_counter--;
 
         // frequency sweeping
         if (pulse_1_sweep.enabled)
@@ -270,12 +329,12 @@ double Apu::get_sample(float global_time)
 {
     // Pulse 1
     double pulse_1_amplitude = (((double)(pulse_1_envelope.amplitude - 1)) / 160.0);
-    bool pulse_1_enable = (pulse_1_active && pulse_1_t >= 8 && pulse_1_length_counter > 0 && pulse_1_envelope.amplitude > 2 && !pulse_1_sweep_mute);
+    bool pulse_1_enable = (pulse_1_active && pulse_1_t >= 8 && pulse_1_length_counter > 0 && pulse_1_envelope.amplitude > 0 && !pulse_1_sweep_mute);
     double pulse_1_sample = pulse_1_enable ? pulse_sample(global_time, pulse_1_t, pulse_1_offset) * pulse_1_amplitude : 0.0;
 
     // Pulse 2
     double pulse_2_amplitude = (((double)(pulse_2_envelope.amplitude - 1)) / 160.0);
-    bool pulse_2_enable = (pulse_2_active && pulse_2_t >= 8 && pulse_2_length_counter > 0 && pulse_2_envelope.amplitude > 2 && !pulse_2_sweep_mute);
+    bool pulse_2_enable = (pulse_2_active && pulse_2_t >= 8 && pulse_2_length_counter > 0 && pulse_2_envelope.amplitude > 0 && !pulse_2_sweep_mute);
     double pulse_2_sample = pulse_2_enable ? pulse_sample(global_time, pulse_2_t, pulse_2_offset) * pulse_2_amplitude : 0.0;
 
     // Triangle
@@ -300,5 +359,10 @@ double Apu::get_sample(float global_time)
             triangle_was_off = true;
     }
 
-    return (pulse_1_sample + pulse_2_sample + triangle_sample) * 0.5;
+    // Noise
+    double noise_amplitude = (((double)(noise_envelope.amplitude - 1)) / 32.0);
+    bool noise_enable = (noise_active && noise_length_counter > 0 && noise_envelope.amplitude > 0 && !(noise_shift_register & 1));
+    double noise_sample = noise_enable ? noise_amplitude * noise_amplitude : 0.0;
+
+    return (pulse_1_sample + pulse_2_sample + triangle_sample + noise_sample) * 0.5;
 }

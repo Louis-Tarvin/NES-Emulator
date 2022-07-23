@@ -19,7 +19,7 @@ private:
     static Emulator *emulator_pointer;
 
 public:
-    Emulator() : bus(Bus("../roms/Zelda.nes"))
+    Emulator() : bus(Bus("../roms/apu_test.nes"))
     {
         sAppName = "NES Emulator";
     }
