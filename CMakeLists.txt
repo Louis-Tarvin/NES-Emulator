@@ -9,7 +9,7 @@ SET(GCC_COVERAGE_LINK_FLAGS    "-lX11 -lGL -lpthread -lpng -lstdc++fs -lopenal")
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
 SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
 
-file(GLOB source_files "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+file(GLOB source_files "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 add_subdirectory(mappers)
 
 add_executable(nes-emulator "${source_files}")

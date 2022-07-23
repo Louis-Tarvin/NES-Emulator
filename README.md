@@ -56,4 +56,5 @@ This structure is shown by the following diagram:
 ## Acknowledgements
 - [Nesdev Wiki](https://www.nesdev.org/wiki/Nesdev_Wiki) - Hardware reference
 - [olcPixelGameEngine](https://github.com/OneLoneCoder/olcPixelGameEngine) - Library used to draw window
+- [tiny file dialogs](https://sourceforge.net/projects/tinyfiledialogs/) - Library used for the file picker UI
 - [javidx9 youtube channel](https://www.youtube.com/c/javidx9) - Great video series on NES emulation

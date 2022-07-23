@@ -5,6 +5,7 @@
 
 #include "olcPixelGameEngine.h"
 #include "olcPGEX_Sound.h"
+#include "tinyfiledialogs.h"
 
 class Emulator : public olc::PixelGameEngine
 {
@@ -19,7 +20,7 @@ private:
     static Emulator *emulator_pointer;
 
 public:
-    Emulator() : bus(Bus("../roms/apu_test.nes"))
+    Emulator(std::string rom_path) : bus(Bus(rom_path))
     {
         sAppName = "NES Emulator";
     }
@@ -140,11 +141,24 @@ Emulator *Emulator::emulator_pointer = nullptr;
 
 int main(int argc, char const *argv[])
 {
-    Emulator emulator;
-    if (emulator.Construct(780, 480, 2, 2))
+    // Open file picker UI
+    char const *extensions[1] = {"*.nes"};
+    char const *selection = tinyfd_openFileDialog(
+        "Select ROM", // title
+        NULL,         // optional initial directory
+        1,            // number of allowed file extensions
+        extensions,   // allowed file extensions
+        NULL,         // optional filter description
+        0             // forbid multiple selections
+    );
+    if (selection != nullptr)
     {
-        std::cout << "Starting emulator\n";
-        emulator.Start();
+        Emulator emulator = Emulator(selection);
+        if (emulator.Construct(780, 480, 2, 2))
+        {
+            std::cout << "Starting emulator\n";
+            emulator.Start();
+        }
     }
     return 0;
 }

@@ -63,7 +63,6 @@ Cartridge::Cartridge(std::string file)
         ifs.close();
 
         uint8_t mapper_number = (header.flags_2 & 0xF0) | (header.flags_1 >> 4);
-        std::cout << +mapper_number << "\n";
 
         switch (mapper_number)
         {
@@ -77,7 +76,7 @@ Cartridge::Cartridge(std::string file)
             mapper = std::make_shared<Mapper002>(header.pgr_rom_size, header.chr_rom_size, mirroring);
             break;
         default:
-            std::cout << "The mapper used by this cartridge is not yet supported\n";
+            std::cout << "The mapper used by this cartridge (" << +mapper_number << ") is not yet supported\n";
             exit(1);
             break;
         }
