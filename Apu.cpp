@@ -1,5 +1,5 @@
 #include <cmath>
-#include "Apu.h"
+#include "Bus.h"
 
 const float PI = 3.14159;
 
@@ -12,6 +12,10 @@ uint16_t noise_period_lookup[] = {4, 8, 16, 32, 64, 96, 128,
                                   160, 202, 254, 380, 508,
                                   762, 1016, 2034, 4068};
 
+uint16_t dmc_rate_lookup[] = {428, 380, 340, 320, 286, 254, 226,
+                              214, 190, 160, 142, 128, 106, 84,
+                              72, 54};
+
 Apu::Apu()
 {
     pulse_1_envelope.amplitude = 0;
@@ -20,6 +24,11 @@ Apu::Apu()
 
 Apu::~Apu()
 {
+}
+
+void Apu::connect_bus(Bus &bus_ptr)
+{
+    bus = &bus_ptr;
 }
 
 uint8_t Apu::read(uint16_t addr)
@@ -42,6 +51,10 @@ uint8_t Apu::read(uint16_t addr)
             data |= 0b00000010;
         if (triangle_length_counter > 0)
             data |= 0b00000100;
+        if (noise_length_counter > 0)
+            data |= 0b00001000;
+        if (dmc_bytes_remaining > 0)
+            data |= 0b00010000;
         break;
     default:
         break;
@@ -131,6 +144,7 @@ void Apu::write(uint16_t addr, uint8_t data)
         break;
     case 0x400C:
         noise_halt = (data & 0b00100000);
+        noise_envelope.loop = noise_halt;
         noise_envelope.constant_volume = (data & 0b00010000);
         noise_envelope.volume = (data & 0x0F);
         break;
@@ -140,6 +154,23 @@ void Apu::write(uint16_t addr, uint8_t data)
         break;
     case 0x400F:
         noise_length_counter = length_lookup[(data & 0b11111000) >> 3];
+        noise_envelope.start = true;
+        break;
+    case 0x4010:
+        dmc_irq_enable = data & 0b10000000;
+        dmc_loop = data & 0b01000000;
+        dmc_rate = dmc_rate_lookup[data & 0x0F] * 3;
+        break;
+    case 0x4011:
+        dmc_output_level = data & 0b01111111;
+        break;
+    case 0x4012:
+        dmc_sample_addr = (((uint16_t)data) << 6) | 0xC000;
+        dmc_current_addr = dmc_sample_addr;
+        break;
+    case 0x4013:
+        dmc_sample_length = (((u_int16_t)data) << 4) + 1;
+        dmc_bytes_remaining = dmc_sample_length;
         break;
     case 0x4015:
         pulse_1_active = (data & 0b00000001);
@@ -152,6 +183,9 @@ void Apu::write(uint16_t addr, uint8_t data)
         noise_active = (data & 0b00001000);
         if (!noise_active)
             noise_length_counter = 0;
+        dmc_active = (data & 0b00010000);
+        if (!dmc_active)
+            dmc_output_level = 64;
     case 0x4017:
         sequencer_mode = (data & 0b10000000);
         irq_inhibit = (data & 0b01000000);
@@ -194,6 +228,46 @@ void Apu::update_envelope(envelope *env)
 
 void Apu::clock()
 {
+    if (clock_timer == 3 || clock_timer == 0)
+    {
+        // Check if DMC needs to be updated
+        if (dmc_timer == 0)
+        {
+            dmc_timer = dmc_rate;
+            if (dmc_bytes_remaining > 0)
+            {
+                if (dmc_sample_buffer_counter == 0)
+                {
+                    dmc_sample_buffer_counter = 8;
+                    dmc_sample_buffer = bus->read(dmc_current_addr);
+                    dmc_current_addr++;
+                    dmc_bytes_remaining--;
+                    if (dmc_bytes_remaining == 0 && dmc_loop)
+                    {
+                        dmc_bytes_remaining = dmc_sample_length;
+                        dmc_current_addr = dmc_sample_addr;
+                    }
+                }
+                if (dmc_sample_buffer & 0b1)
+                {
+                    // modulate up
+                    if (dmc_output_level < 127)
+                        dmc_output_level++;
+                }
+                else
+                {
+                    // modulate down
+                    if (dmc_output_level > 1)
+                        dmc_output_level--;
+                }
+                dmc_sample_buffer >>= 1;
+                dmc_sample_buffer_counter--;
+            }
+            else
+                dmc_output_level = 64;
+        }
+        dmc_timer--;
+    }
     if (clock_timer == 0)
     {
         clock_timer == 6;
@@ -364,5 +438,8 @@ double Apu::get_sample(float global_time)
     bool noise_enable = (noise_active && noise_length_counter > 0 && noise_envelope.amplitude > 0 && !(noise_shift_register & 1));
     double noise_sample = noise_enable ? noise_amplitude * noise_amplitude : 0.0;
 
-    return (pulse_1_sample + pulse_2_sample + triangle_sample + noise_sample) * 0.5;
+    // DMC
+    double dmc_sample = dmc_output_level ? (dmc_output_level - 64) / 8.0 : 0.0;
+
+    return (pulse_1_sample + pulse_2_sample + triangle_sample + noise_sample + (dmc_sample * 0.2)) * 0.5;
 }

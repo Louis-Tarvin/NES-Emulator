@@ -10,6 +10,7 @@ Bus::Bus(std::string cart_file) : cartridge(Cartridge(cart_file))
         i = 0x00;
 
     cpu.connect_bus(*this);
+    apu.connect_bus(*this);
     ppu.connect_cartridge(&cartridge);
 }
 

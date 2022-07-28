@@ -11,7 +11,7 @@ A Nintendo Entertainment System emulator written in C++. This has only been test
 - [x] background rendering
 - [x] sprite rendering
 - [x] user input
-- [ ] audio (4/5 channels done)
+- [x] audio
 - [ ] more mappers
 
 Currently implemented mappers: 

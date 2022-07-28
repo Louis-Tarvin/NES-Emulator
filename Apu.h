@@ -1,8 +1,12 @@
 #include <cstdint>
 
+class Bus;
+
 class Apu
 {
 private:
+    Bus *bus;
+
     bool half_frame = false;
     bool sequencer_mode = false;
     bool irq_inhibit = false;
@@ -73,12 +77,27 @@ private:
     envelope noise_envelope;
     uint16_t noise_shift_register = 1;
 
+    // DMC channel variables
+    bool dmc_active = false;
+    bool dmc_irq_enable = false;
+    bool dmc_loop = false;
+    uint16_t dmc_rate = 0;
+    uint16_t dmc_timer = 0;
+    uint8_t dmc_output_level = 0;
+    uint16_t dmc_sample_addr = 0;
+    uint16_t dmc_current_addr = 0;
+    uint16_t dmc_sample_length = 0;
+    uint16_t dmc_bytes_remaining = 0;
+    uint8_t dmc_sample_buffer = 0;
+    uint8_t dmc_sample_buffer_counter = 0;
+
     void update_envelope(envelope *env);
 
 public:
     Apu();
     ~Apu();
 
+    void connect_bus(Bus &bus);
     uint8_t read(uint16_t addr);
     void write(uint16_t addr, uint8_t data);
     void quarter_frame();
