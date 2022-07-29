@@ -5,6 +5,7 @@
 #include "mappers/Mapper000.h"
 #include "mappers/Mapper001.h"
 #include "mappers/Mapper002.h"
+#include "mappers/Mapper004.h"
 
 class Cartridge
 {

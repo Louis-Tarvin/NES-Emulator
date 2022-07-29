@@ -75,6 +75,9 @@ Cartridge::Cartridge(std::string file)
         case 2:
             mapper = std::make_shared<Mapper002>(header.pgr_rom_size, header.chr_rom_size, mirroring);
             break;
+        case 4:
+            mapper = std::make_shared<Mapper004>(header.pgr_rom_size, header.chr_rom_size, mirroring);
+            break;
         default:
             std::cout << "The mapper used by this cartridge (" << +mapper_number << ") is not yet supported\n";
             exit(1);

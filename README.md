@@ -12,12 +12,13 @@ A Nintendo Entertainment System emulator written in C++. This has only been test
 - [x] sprite rendering
 - [x] user input
 - [x] audio
-- [ ] more mappers
+- [x] support for most common mappers
 
 Currently implemented mappers: 
 - NROM (000)
 - MMC1 (001)
 - UxROM (002)
+- MMC3 (004)
   
 ---
 
