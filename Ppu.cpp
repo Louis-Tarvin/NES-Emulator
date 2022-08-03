@@ -716,6 +716,10 @@ bool Ppu::clock()
 
     screen.SetPixel(scanline_cycles - 1, scanline, colour_map[output_colour_index]);
 
+    // clock the cartridge
+    if ((ppumask & 0b00010000 || ppumask & 0b00001000) && scanline < 240 && scanline_cycles == 260)
+        cartridge->clock();
+
     scanline_cycles++;
     if (scanline_cycles >= 341)
     {

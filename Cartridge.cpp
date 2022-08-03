@@ -139,3 +139,18 @@ Mirroring Cartridge::get_mirroring()
 {
     return mapper->get_mirroring();
 }
+
+void Cartridge::clock()
+{
+    mapper->clock();
+}
+
+bool Cartridge::emit_irq()
+{
+    if (mapper->emit_irq)
+    {
+        mapper->emit_irq = false;
+        return true;
+    }
+    return false;
+}

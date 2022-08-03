@@ -34,3 +34,5 @@ Mirroring Mapper::get_mirroring()
 {
     return mirroring;
 }
+
+void Mapper::clock() {}

@@ -15,6 +15,9 @@ public:
     Mapper(uint8_t prg_banks, uint8_t chr_banks, Mirroring mirroring);
     ~Mapper();
 
+    /// is true when a CPU IRQ is to be triggered
+    bool emit_irq = false;
+
     /// Map the CPU address to the PGR ROM address
     virtual uint32_t map(uint16_t addr);
 
@@ -32,6 +35,9 @@ public:
 
     /// Get the Mirroring mode of the cartridge
     virtual Mirroring get_mirroring();
+
+    /// Mapper is clocked at the end of a scanline
+    virtual void clock();
 
 protected:
     uint8_t num_prg_banks;

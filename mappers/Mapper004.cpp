@@ -83,6 +83,32 @@ void Mapper004::write(uint16_t addr, uint8_t data)
                 mirroring = Mirroring::Vertical;
         }
     }
+    else if (addr < 0xE000)
+    {
+        if (addr % 2 == 0)
+        {
+            // even -> irq latch
+            irq_latch = data;
+        }
+        else
+        {
+            // odd -> irq reload
+            irq_counter = irq_latch;
+        }
+    }
+    else if (addr <= 0xFFFF)
+    {
+        if (addr % 2 == 0)
+        {
+            // even -> irq disable
+            irq_enable = false;
+        }
+        else
+        {
+            // odd -> irq enable
+            irq_enable = true;
+        }
+    }
 }
 
 uint32_t Mapper004::ppu_map(uint16_t addr)
@@ -137,4 +163,15 @@ void Mapper004::prg_ram_write(uint16_t addr, uint8_t data)
         // Reading PRG RAM
         prg_ram[addr & 0x1FFF] = data;
     }
+}
+
+void Mapper004::clock()
+{
+    if (irq_counter == 0)
+        irq_counter = irq_latch;
+    else
+        irq_counter--;
+
+    if (irq_counter == 0 && irq_enable)
+        emit_irq = true;
 }

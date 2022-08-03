@@ -123,6 +123,10 @@ bool Bus::clock()
         cpu.nmi();
     }
 
+    // check if the cartridge has triggered an interrupt
+    if (cartridge.emit_irq())
+        cpu.irq();
+
     // check if OAM DMA register was written to
     if (ppu.begin_dma)
     {
